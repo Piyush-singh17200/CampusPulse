@@ -10,6 +10,9 @@ Prompt 4 is implemented through the account/authentication layer. Dashboards,
 public business APIs, uploads, OCR, recommendations, notifications, production
 email delivery, deployment, and PostgreSQL RLS remain future work.
 
+The project is published at
+<https://github.com/Piyush-singh17200/CampusPulse>.
+
 ## Current status
 
 Implemented and verified in this phase:
@@ -61,7 +64,8 @@ Intentionally deferred:
 - Node.js `>=20.19.0` (the repository has `.nvmrc`).
 - npm (ships with Node).
 - Docker Desktop with Docker Compose.
-- Git (optional for local development; the repository currently has no commits).
+- Git (optional for local development; clone the published repository or use
+  the existing checkout).
 
 ## Quick start on Windows
 
