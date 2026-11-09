@@ -1,0 +1,613 @@
+// CampusPulse multi-tenant database schema.
+//
+// Tenant ownership is explicit on tenant-owned records. Composite foreign keys
+// include collegeId where a child record must belong to the same college as its
+// parent. This makes cross-college relationships invalid at the database layer,
+// in addition to the server-side tenant scope enforced by services.
+//
+// PostgreSQL-specific check constraints and the partial unique poster index are
+// added in the initial migration because Prisma does not model them directly.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CollegeStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum UserRole {
+  STUDENT
+  CLUB_ADMIN
+  COLLEGE_ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  DISABLED
+}
+
+enum ClubStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  ARCHIVED
+}
+
+enum ClubMembershipRole {
+  PRESIDENT
+  OFFICER
+  MEMBER
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  LEFT
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  ATTENDED
+  NO_SHOW
+}
+
+enum PosterOcrStatus {
+  NOT_REQUESTED
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  SYSTEM
+  EVENT_REMINDER
+  REGISTRATION_UPDATE
+  MODERATION_UPDATE
+  CLUB_UPDATE
+}
+
+enum DuplicateStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+}
+
+enum AuditAction {
+  USER_ROLE_CHANGED
+  COLLEGE_CREATED
+  COLLEGE_UPDATED
+  CLUB_APPROVED
+  CLUB_REJECTED
+  EVENT_CREATED
+  EVENT_UPDATED
+  EVENT_APPROVED
+  EVENT_REJECTED
+  EVENT_CANCELLED
+  EVENT_STATUS_CHANGED
+  DUPLICATE_CONFIRMED
+  DUPLICATE_DISMISSED
+  REGISTRATION_STATUS_CHANGED
+}
+
+// Authentication events include anonymous attempts (for example, a login
+// attempt for an unknown email), so they cannot use AuditLog's required
+// actorUserId relationship. This is an auth-specific, append-only audit trail.
+enum AuthAuditEventType {
+  REGISTERED
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  PASSWORD_RESET_FAILED
+  SUPER_ADMIN_PROVISIONED
+  SESSION_REVOKED
+}
+
+model College {
+  id            String        @id @default(uuid()) @db.Uuid
+  name          String        @db.VarChar(160)
+  slug          String        @unique @db.VarChar(80)
+  shortName     String?       @db.VarChar(48)
+  primaryDomain String?       @unique @db.VarChar(255)
+  timezone      String        @default("Asia/Kolkata") @db.VarChar(64)
+  status        CollegeStatus @default(ACTIVE)
+  settings      Json          @default("{}")
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime?     @db.Timestamptz(3)
+
+  users           User[]
+  studentProfiles StudentProfile[]
+  clubs           Club[]
+  clubMemberships ClubMembership[]
+  categories      Category[]
+  events          Event[]
+  auditLogs       AuditLog[]
+  authAuditEvents AuthAuditEvent[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("colleges")
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  collegeId     String?    @db.Uuid
+  email         String     @unique @db.VarChar(320)
+  emailVerified Boolean    @default(false)
+  name          String     @db.VarChar(160)
+  image         String?    @db.VarChar(500)
+  role          UserRole   @default(STUDENT)
+  status        UserStatus @default(ACTIVE)
+  lastSeenAt    DateTime?  @db.Timestamptz(3)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime?  @db.Timestamptz(3)
+
+  college             College?             @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  studentProfile      StudentProfile?
+  clubMemberships     ClubMembership[]
+  createdClubs        Club[]               @relation("ClubCreator")
+  createdEvents       Event[]              @relation("EventCreator")
+  notifications       Notification[]
+  auditLogs           AuditLog[]           @relation("AuditActor")
+  duplicateReviews    EventDuplicate[]     @relation("DuplicateReviewer")
+  sessions            Session[]
+  accounts            Account[]
+  passwordResetTokens PasswordResetToken[]
+  authAuditEvents     AuthAuditEvent[]     @relation("AuthAuditUser")
+
+  @@unique([id, collegeId])
+  @@index([collegeId, role, status])
+  @@index([collegeId, createdAt])
+  @@index([status])
+  @@map("users")
+}
+
+model StudentProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  collegeId      String   @db.Uuid
+  rollNumber     String?  @db.VarChar(64)
+  department     String?  @db.VarChar(120)
+  graduationYear Int?
+  bio            String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  user          User                @relation(fields: [userId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  college       College             @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  interests     StudentInterest[]
+  registrations EventRegistration[]
+  feedback      EventFeedback[]
+
+  @@unique([userId, collegeId])
+  @@unique([id, collegeId])
+  @@unique([collegeId, rollNumber])
+  @@index([collegeId, graduationYear])
+  @@map("student_profiles")
+}
+
+model Club {
+  id           String     @id @default(uuid()) @db.Uuid
+  collegeId    String     @db.Uuid
+  name         String     @db.VarChar(160)
+  slug         String     @db.VarChar(80)
+  description  String?    @db.Text
+  status       ClubStatus @default(PENDING)
+  statusReason String?    @db.VarChar(500)
+  createdById  String     @db.Uuid
+  approvedAt   DateTime?  @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt    DateTime?  @db.Timestamptz(3)
+
+  college     College          @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy   User             @relation("ClubCreator", fields: [createdById, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  memberships ClubMembership[]
+  events      Event[]
+
+  @@unique([collegeId, slug])
+  @@unique([id, collegeId])
+  @@index([collegeId, status])
+  @@index([collegeId, name])
+  @@index([createdById])
+  @@map("clubs")
+}
+
+model ClubMembership {
+  id        String             @id @default(uuid()) @db.Uuid
+  collegeId String             @db.Uuid
+  clubId    String             @db.Uuid
+  userId    String             @db.Uuid
+  role      ClubMembershipRole @default(MEMBER)
+  status    MembershipStatus   @default(ACTIVE)
+  joinedAt  DateTime           @default(now()) @db.Timestamptz(3)
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime           @updatedAt @db.Timestamptz(3)
+
+  club    Club    @relation(fields: [clubId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  user    User    @relation(fields: [userId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([clubId, userId])
+  @@index([collegeId, userId, status])
+  @@index([clubId, status])
+  @@map("club_memberships")
+}
+
+model Interest {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(80)
+  slug        String   @unique @db.VarChar(80)
+  description String?  @db.VarChar(300)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  studentInterests StudentInterest[]
+
+  @@index([isActive, sortOrder])
+  @@map("interests")
+}
+
+model StudentInterest {
+  id               String   @id @default(uuid()) @db.Uuid
+  collegeId        String   @db.Uuid
+  studentProfileId String   @db.Uuid
+  interestId       String   @db.Uuid
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+
+  studentProfile StudentProfile @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  interest       Interest       @relation(fields: [interestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([studentProfileId, interestId])
+  @@index([collegeId, interestId])
+  @@map("student_interests")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  collegeId   String   @db.Uuid
+  name        String   @db.VarChar(80)
+  slug        String   @db.VarChar(80)
+  description String?  @db.VarChar(300)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  college         College         @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  eventCategories EventCategory[]
+
+  @@unique([collegeId, slug])
+  @@unique([id, collegeId])
+  @@index([collegeId, isActive, sortOrder])
+  @@map("categories")
+}
+
+model Event {
+  id                   String      @id @default(uuid()) @db.Uuid
+  collegeId            String      @db.Uuid
+  clubId               String      @db.Uuid
+  createdById          String      @db.Uuid
+  title                String      @db.VarChar(180)
+  slug                 String      @db.VarChar(100)
+  summary              String?     @db.VarChar(500)
+  description          String?     @db.Text
+  status               EventStatus @default(DRAFT)
+  startsAt             DateTime    @db.Timestamptz(3)
+  endsAt               DateTime    @db.Timestamptz(3)
+  registrationOpensAt  DateTime?   @db.Timestamptz(3)
+  registrationDeadline DateTime?   @db.Timestamptz(3)
+  venueName            String      @db.VarChar(180)
+  venueAddress         String?     @db.VarChar(300)
+  isOnline             Boolean     @default(false)
+  onlineUrl            String?     @db.VarChar(500)
+  capacity             Int?
+  publishedAt          DateTime?   @db.Timestamptz(3)
+  rejectedAt           DateTime?   @db.Timestamptz(3)
+  rejectionReason      String?     @db.VarChar(500)
+  cancelledAt          DateTime?   @db.Timestamptz(3)
+  cancellationReason   String?     @db.VarChar(500)
+  completedAt          DateTime?   @db.Timestamptz(3)
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+  deletedAt            DateTime?   @db.Timestamptz(3)
+
+  college               College             @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  club                  Club                @relation(fields: [clubId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy             User                @relation("EventCreator", fields: [createdById, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  categories            EventCategory[]
+  registrations         EventRegistration[]
+  posters               EventPoster[]
+  feedback              EventFeedback[]
+  duplicatesAsPrimary   EventDuplicate[]    @relation("DuplicatePrimary")
+  duplicatesAsCandidate EventDuplicate[]    @relation("DuplicateCandidate")
+
+  @@unique([collegeId, slug])
+  @@unique([id, collegeId])
+  @@index([collegeId, status, startsAt])
+  @@index([collegeId, clubId, startsAt])
+  @@index([collegeId, createdAt])
+  @@index([createdById])
+  @@map("events")
+}
+
+model EventCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  collegeId  String   @db.Uuid
+  eventId    String   @db.Uuid
+  categoryId String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  event    Event    @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  category Category @relation(fields: [categoryId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([eventId, categoryId])
+  @@index([collegeId, categoryId])
+  @@index([eventId])
+  @@map("event_categories")
+}
+
+model EventRegistration {
+  id               String             @id @default(uuid()) @db.Uuid
+  collegeId        String             @db.Uuid
+  eventId          String             @db.Uuid
+  studentProfileId String             @db.Uuid
+  status           RegistrationStatus @default(CONFIRMED)
+  registeredAt     DateTime           @default(now()) @db.Timestamptz(3)
+  cancelledAt      DateTime?          @db.Timestamptz(3)
+  checkedInAt      DateTime?          @db.Timestamptz(3)
+  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+
+  event          Event          @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  studentProfile StudentProfile @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([eventId, studentProfileId])
+  @@index([collegeId, eventId, status])
+  @@index([collegeId, studentProfileId, registeredAt])
+  @@index([eventId, status])
+  @@map("event_registrations")
+}
+
+model EventPoster {
+  id            String          @id @default(uuid()) @db.Uuid
+  collegeId     String          @db.Uuid
+  eventId       String          @db.Uuid
+  storageKey    String          @db.VarChar(512)
+  mimeType      String          @db.VarChar(100)
+  byteSize      Int
+  width         Int?
+  height        Int?
+  altText       String?         @db.VarChar(300)
+  ocrText       String?         @db.Text
+  ocrStatus     PosterOcrStatus @default(NOT_REQUESTED)
+  ocrReviewedAt DateTime?       @db.Timestamptz(3)
+  isPrimary     Boolean         @default(false)
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+
+  event Event @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([eventId, isPrimary])
+  @@index([collegeId, ocrStatus])
+  @@map("event_posters")
+}
+
+model EventFeedback {
+  id               String   @id @default(uuid()) @db.Uuid
+  collegeId        String   @db.Uuid
+  eventId          String   @db.Uuid
+  studentProfileId String   @db.Uuid
+  rating           Int
+  comment          String?  @db.Text
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  event          Event          @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  studentProfile StudentProfile @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([eventId, studentProfileId])
+  @@index([collegeId, eventId, rating])
+  @@map("event_feedback")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  collegeId String           @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(160)
+  body      String           @db.VarChar(1000)
+  actionUrl String?          @db.VarChar(500)
+  readAt    DateTime?        @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([collegeId, userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model EventDuplicate {
+  id               String          @id @default(uuid()) @db.Uuid
+  collegeId        String          @db.Uuid
+  primaryEventId   String          @db.Uuid
+  candidateEventId String          @db.Uuid
+  status           DuplicateStatus @default(PENDING)
+  confidence       Decimal         @db.Decimal(5, 4)
+  reviewedById     String?         @db.Uuid
+  reviewedAt       DateTime?       @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+
+  primaryEvent   Event @relation("DuplicatePrimary", fields: [primaryEventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  candidateEvent Event @relation("DuplicateCandidate", fields: [candidateEventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  reviewedBy     User? @relation("DuplicateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([primaryEventId, candidateEventId])
+  @@index([collegeId, status])
+  @@index([candidateEventId])
+  @@map("event_duplicates")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  collegeId   String?     @db.Uuid
+  actorUserId String      @db.Uuid
+  action      AuditAction
+  entityType  String      @db.VarChar(80)
+  entityId    String      @db.VarChar(120)
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+
+  college College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actor   User     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([collegeId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// Authentication and security records
+// -----------------------------------------------------------------------------
+
+// Better Auth's database session model. Sessions are server-side and are
+// revoked on logout, password reset, and privileged role changes.
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  token     String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  ipAddress String?  @db.VarChar(64)
+  userAgent String?  @db.Text
+  userId    String   @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Better Auth's credential account model. The password field contains only an
+// Argon2id PHC hash supplied by the application's password service.
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String    @db.VarChar(255)
+  providerId            String    @db.VarChar(80)
+  userId                String    @db.Uuid
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope                 String?   @db.Text
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+// Better Auth's verification model. This application uses a separate
+// PasswordResetToken model so reset tokens are stored only as hashes.
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String   @db.VarChar(255)
+  value      String   @db.Text
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verifications")
+}
+
+// Only a SHA-256 hash of the reset token is stored. Tokens are single-use and
+// short-lived; issuing a new token invalidates all prior unused tokens.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique @db.VarChar(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// PostgreSQL-backed fixed-window limiter. The key is an HMAC digest, never a
+// raw email address or IP address. The key is the primary lookup index.
+model RateLimitEntry {
+  key             String   @id @db.VarChar(128)
+  count           Int      @default(0)
+  windowStartedAt DateTime @db.Timestamptz(3)
+  expiresAt       DateTime @db.Timestamptz(3)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("rate_limit_entries")
+}
+
+model AuthAuditEvent {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String?            @db.Uuid
+  collegeId String?            @db.Uuid
+  event     AuthAuditEventType
+  emailHash String?            @db.VarChar(64)
+  ipHash    String?            @db.VarChar(64)
+  userAgent String?            @db.VarChar(512)
+  metadata  Json               @default("{}")
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+
+  user    User?    @relation("AuthAuditUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  college College? @relation(fields: [collegeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([collegeId, createdAt])
+  @@index([event, createdAt])
+  @@map("auth_audit_events")
+}
