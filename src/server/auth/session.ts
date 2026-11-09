@@ -1,6 +1,7 @@
 import "server-only";
 
 import { headers } from "next/headers";
+import { connection } from "next/server";
 import { cache } from "react";
 
 import type { UserRole } from "@/generated/prisma/enums";
@@ -22,6 +23,11 @@ import type { AuthenticatedUser } from "./types";
  * membership state are reloaded from PostgreSQL.
  */
 export const getCurrentUser = cache(async (): Promise<AuthenticatedUser | null> => {
+  // Force request-time rendering for any page or layout that resolves the
+  // session. This prevents Next.js from prerendering authenticated screens and
+  // also makes the dependency explicit if the auth implementation changes.
+  await connection();
+
   let session: Awaited<ReturnType<typeof auth.api.getSession>>;
 
   try {
