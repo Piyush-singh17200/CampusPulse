@@ -592,8 +592,8 @@ production server before rebuilding.
 ## Scope boundary
 
 Prompt 4 stops before student/club/college/super-admin dashboards, OCR,
-recommendation algorithms, notifications, production deployment, commits,
-pushes, paid services, or external account changes. PostgreSQL RLS, production
-SMTP, and deployment hardening remain future work. Do not expose the services as
-public business APIs until route-level authorization and production hardening are
-reviewed for that phase.
+recommendation algorithms, notifications, production deployment, paid services,
+or external account changes. The source is published to GitHub, but PostgreSQL
+RLS, production SMTP, and deployment hardening remain future work. Do not expose
+the services as public business APIs until route-level authorization and
+production hardening are reviewed for that phase.
