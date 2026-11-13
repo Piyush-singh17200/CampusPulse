@@ -27,7 +27,8 @@
     "auth:bootstrap-super-admin": "tsx --conditions=react-server scripts/bootstrap-super-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:db": "vitest run"
+    "test:db": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.18",
@@ -45,6 +46,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/turbopack": "4.3.4",
     "@types/node": "24.13.0",
     "@types/nodemailer": "^8.0.2",

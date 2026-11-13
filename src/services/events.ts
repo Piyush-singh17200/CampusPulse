@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { EventStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db/client";
 import { writeAuditLog } from "@/server/db/audit";
+import { createNotifications } from "@/server/db/notifications";
 import { runInTransaction } from "@/server/db/transactions";
 import {
   ActorNotAuthorizedError,
@@ -20,6 +21,10 @@ import {
   isSuperAdmin,
   type AuthenticatedActor,
 } from "@/services/authorization";
+import {
+  getActiveClubManagerIds,
+  getConfirmedRegistrationUserIds,
+} from "@/services/notification-recipients";
 import {
   assertDateOrder,
   eventStatusSchema,
@@ -430,6 +435,10 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
       throw new DomainError("CONFLICT", "The event changed while the transition was applied.", 409);
     }
 
+    const confirmedStudentIds =
+      data.to === "CANCELLED"
+        ? await getConfirmedRegistrationUserIds(tx, event.id, event.collegeId)
+        : [];
     let cancelledRegistrationCount = 0;
 
     if (data.to === "CANCELLED") {
@@ -442,6 +451,50 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
         data: { status: "CANCELLED", cancelledAt: now },
       });
       cancelledRegistrationCount = cancelled.count;
+    }
+
+    if (data.to === "PUBLISHED") {
+      const managerIds = await getActiveClubManagerIds(tx, event.clubId, event.collegeId);
+      await createNotifications(
+        tx,
+        managerIds.map((userId) => ({
+          collegeId: event.collegeId,
+          userId,
+          type: "MODERATION_UPDATE" as const,
+          title: "Event approved",
+          body: `"${event.title}" is now published and visible to students.`,
+          actionUrl: `/club/events/${event.id}?club=${event.clubId}`,
+        })),
+      );
+    }
+
+    if (data.to === "REJECTED") {
+      const managerIds = await getActiveClubManagerIds(tx, event.clubId, event.collegeId);
+      await createNotifications(
+        tx,
+        managerIds.map((userId) => ({
+          collegeId: event.collegeId,
+          userId,
+          type: "MODERATION_UPDATE" as const,
+          title: "Event needs changes",
+          body: `"${event.title}" was rejected. Reason: ${data.reason ?? "No reason provided."}`,
+          actionUrl: `/club/events/${event.id}?club=${event.clubId}`,
+        })),
+      );
+    }
+
+    if (data.to === "CANCELLED") {
+      await createNotifications(
+        tx,
+        confirmedStudentIds.map((userId) => ({
+          collegeId: event.collegeId,
+          userId,
+          type: "REGISTRATION_UPDATE" as const,
+          title: "Event cancelled",
+          body: `"${event.title}" was cancelled. Reason: ${data.reason ?? "No reason provided."}`,
+          actionUrl: "/student/registrations",
+        })),
+      );
     }
 
     await writeAuditLog(tx, {

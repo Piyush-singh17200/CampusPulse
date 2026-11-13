@@ -16,6 +16,7 @@ export type DomainErrorCode =
   | "INVALID_RESET_TOKEN"
   | "INVALID_ORIGIN"
   | "RATE_LIMITED"
+  | "STORAGE_ERROR"
   | "CONFLICT";
 
 export class DomainError extends Error {

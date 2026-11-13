@@ -3,9 +3,11 @@
 Scope: the database access layer, tenant helpers, event lifecycle, registration
 integrity, club/role administration, audit logging, authentication, sessions,
 password recovery, RBAC, CSRF/origin checks, PostgreSQL-backed rate limiting,
-test-database safety, seed safety, and the current landing/auth UI surface.
-Dashboards, public business APIs, uploads, OCR, and deployment remain out of
-scope.
+test-database safety, seed safety, and the landing/auth UI surface. The Prompt 5
+addendum covers the dashboard and saved-event surface. The Prompt 6 addendum
+covers authenticated poster upload/delivery and transactional notifications.
+Public business APIs, OCR, production object storage, and deployment remain out
+of scope.
 
 Review date: 2026-11-09.
 
@@ -22,6 +24,99 @@ Review date: 2026-11-09.
 **No Critical or High finding remains unresolved within the implemented scope.**
 This is **not** a production-readiness claim: PostgreSQL RLS, production SMTP,
 deployment hardening, and a penetration test remain later work.
+
+## Prompt 5 addendum
+
+Prompt 5 adds the four role dashboards and persistent saved events. The controls
+reviewed for this addition are:
+
+- Dashboard data access is server-only and every query accepts the trusted
+  `AuthenticatedActor` first, re-checks the required role, and scopes by the
+  actor's college or verified managed clubs.
+- Layout guards redirect unauthenticated, disabled, and wrong-role users, but
+  each page also performs its own authorization check.
+- Dashboard Server Actions call `assertSameOrigin()` and
+  `requireAuthenticatedUser()`, then invoke services that reload authorization
+  state from PostgreSQL. Browser payloads do not supply actor identity, role,
+  college, or club membership.
+- Saved events use a unique `(studentProfileId, eventId)` pair and composite
+  tenant foreign keys; save/unsave is idempotent and audited.
+- No public business API or Prisma access from client components was added.
+- Platform and college lifecycle/status changes revoke affected sessions.
+- Dashboard analytics use SVG attributes, not inline `style` attributes. The
+  production CSP keeps its nonce-based `style-src` and allows only the
+  framework-owned `next-route-announcer` style through a narrow
+  `style-src-attr` hash; `'unsafe-inline'` is not enabled in production.
+
+Residual risks remain the same as the findings below: no PostgreSQL RLS, no
+production notification/SMTP delivery, no penetration test, and application-level
+audit immutability. See `docs/dashboards.md` for the route and action map.
+
+## Prompt 6 addendum
+
+Prompt 6 adds authenticated event-poster management, poster delivery, and
+transactional in-app notifications. Addendum date: 2026-11-11.
+
+### Controls reviewed
+
+- **Upload authorization.** Upload, replacement, and removal require an active
+  owning-club president/officer and are limited to `DRAFT`, `REJECTED`, and
+  `PUBLISHED` events. `PENDING_APPROVAL`, `CANCELLED`, and `COMPLETED` are
+  locked. College and platform administrators can review posters but cannot
+  mutate them.
+- **Content validation.** The server inspects file bytes, not the browser MIME
+  type or filename. PNG signature/chunks/CRC, JPEG markers, and WebP RIFF/VP8
+  containers are parsed. Empty, malformed, unsupported, SVG, HTML, executable,
+  oversized, zero-dimension, and over-pixel files are rejected. The limit is
+  5 MB; dimensions are capped at 12,000 px per side and 40,000,000 pixels total.
+- **Storage safety.** Callers pass only a generated key matching
+  `UUID.(jpg|png|webp)`. The local adapter rejects path traversal, writes a
+  mode-`0600` temporary file, atomically renames it, refuses to overwrite an
+  existing key, and never exposes filesystem paths. The storage root is outside
+  `public/` and is not served by a static route.
+- **Delivery authorization.** `GET /api/posters/[posterId]` requires an
+  authenticated session. It returns `401` for unauthenticated requests and
+  `404` for missing, unauthorized, cross-tenant, deleted, or storage-missing
+  posters. Published posters are visible to authenticated same-college users
+  while the event is published and the club is active. Unpublished posters are
+  limited to the owning club manager, same-college college administrators, and
+  platform administrators.
+- **Response hardening.** Successful poster responses use
+  `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`,
+  `Cross-Origin-Resource-Policy: same-origin`, `Vary: Cookie`, and an inline
+  filename with the detected extension. Errors return generic bodies.
+- **Failure and cleanup.** A storage write failure returns `STORAGE_ERROR`
+  without a database row. If the database transaction fails after the file
+  write, the new file is deleted. A replaced or removed file is deleted after
+  commit only when no poster row still references it. A failed cleanup can
+  leave an orphan file but cannot leave a broken database reference.
+- **Notifications.** Approval/rejection recipients are active club managers;
+  cancellation recipients are confirmed registrants; registration recipients
+  are the acting student. Recipient IDs are derived from the transaction, not
+  browser input. Notification rows share the business transaction, and state
+  guards prevent duplicate notifications on retries.
+- **Audit.** `POSTER_UPLOADED`, `POSTER_REPLACED`, and `POSTER_REMOVED` are
+  written in the same transaction as the poster metadata change. Audit metadata
+  is redacted and bounded.
+- **CSP.** The nonce-based CSP is unchanged. `img-src` permits `'self'`, `blob:`,
+  and `data:` for local previews; `'unsafe-inline'` is not enabled. Poster bytes
+  are delivered from the same origin through the authenticated route.
+
+### Prompt 6 result
+
+| Area                       | Result                                                              |
+| -------------------------- | ------------------------------------------------------------------- |
+| Critical findings          | 0 in the implemented Prompt 6 scope                                 |
+| High findings              | 0 in the implemented Prompt 6 scope                                 |
+| Medium findings            | 0 new code vulnerabilities found                                    |
+| Residual operational risks | Local storage, no malware scan, no OCR/email                        |
+| Automated coverage         | Unit/integration poster and notification tests; Playwright workflow |
+
+This is not a production-readiness claim. The local filesystem adapter is for
+development and single-instance self-hosting; production needs durable shared
+storage, lifecycle/backup policy, and a malware-scanning decision. Notifications
+are in-app only. PostgreSQL RLS and a penetration test remain future work. See
+`docs/poster-storage.md` and `docs/event-operations.md`.
 
 ## Findings
 
@@ -166,6 +261,10 @@ Critical/High issue for the current phase.
   in this phase.
 - Production password recovery is not operational until SMTP is configured.
 - IP rate limiting relies on trusted proxy headers.
+- Poster storage is local and single-instance; it is not shared, CDN-backed,
+  malware-scanned, or covered by a production lifecycle/backup policy.
+- Notifications are in-app only; there is no email/push/SMS delivery or
+  background outbox.
 - Event creation is intentionally club-manager-only because the
   `events_createdById_collegeId_fkey` composite constraint requires the creator
   to belong to the event's college. Platform admins can review/transition
@@ -177,5 +276,6 @@ Critical/High issue for the current phase.
 No Critical/High issue was found in the implemented Prompt 4 scope. The Medium
 items are an explicitly deferred production-hardening item (RLS), a
 development-only transitive advisory, and missing production SMTP configuration.
-Production deployment must wait for RLS/email/secret-manager hardening and a
-separate deployment review.
+Prompt 6 found no new Critical/High code issue in the poster and notification
+surface. Production deployment must wait for RLS/email/secret-manager hardening,
+durable shared poster storage, and a separate deployment review.

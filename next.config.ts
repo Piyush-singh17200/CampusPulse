@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
+  experimental: {
+    serverActions: {
+      // Poster uploads are capped at 5 MB by the poster service. Leave room
+      // for multipart boundaries and form-field overhead.
+      bodySizeLimit: "6mb",
+    },
+  },
   turbopack: {
     rules: {
       "*.css": {

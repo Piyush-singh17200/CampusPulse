@@ -6,9 +6,13 @@ surface, a multi-tenant PostgreSQL schema, database-backed sessions, server-side
 RBAC/tenant authorization, integration tests, and a safe fictional development
 seed.
 
-Prompt 4 is implemented through the account/authentication layer. Dashboards,
-public business APIs, uploads, OCR, recommendations, notifications, production
-email delivery, deployment, and PostgreSQL RLS remain future work.
+Prompt 5 is implemented through four role-specific dashboards backed by real
+PostgreSQL data. Prompt 6 adds event operations: poster upload/replacement/
+removal with a server-only local storage adapter, authenticated poster delivery,
+transactional in-app notifications for moderation and registration events, and
+poster/lifecycle audit coverage. Public business APIs, OCR, duplicate-detection
+algorithms, recommendations, email notification delivery, production object
+storage, deployment, and PostgreSQL RLS remain future work.
 
 The project is published at
 <https://github.com/Piyush-singh17200/CampusPulse>.
@@ -20,10 +24,11 @@ Implemented and verified in this phase:
 - Responsive, accessible CampusPulse landing page with all 11 required sections.
 - Next.js 16 App Router, strict TypeScript, ESLint, Prettier, and production build.
 - PostgreSQL 17 Docker service on host port `5434`.
-- Prisma schema with 22 models, enums, composite tenant foreign keys, indexes,
+- Prisma schema with 23 models, enums, composite tenant foreign keys, indexes,
   timestamps, and deliberate deletion behavior.
-- Three applied migrations: the initial schema, the event audit enum extension,
-  and the additive auth/session/RBAC migration.
+- Five applied migrations: the initial schema, the event audit enum extension,
+  the additive auth/session/RBAC migration, the additive dashboard
+  saved-event/audit migration, and the Prompt 6 poster audit enum migration.
 - Central database configuration, pooling, hot-reload singleton, health check,
   test-database guards, tenant helpers, domain errors, transaction retries, and
   audit redaction.
@@ -40,18 +45,47 @@ Implemented and verified in this phase:
   accepted from browser payloads.
 - Login, registration, forgot-password, reset-password, unauthorized,
   account-disabled, and minimal account-home screens.
+- Student, club administrator, college administrator, and platform administrator
+  dashboards with distinct navigation, real database metrics, filters,
+  pagination, loading/empty/error states, and responsive layouts.
+- Server-only dashboard query functions, route-level role guards, and Server
+  Actions that call the existing trusted-actor domain services.
+- Persistent student saved events with composite tenant foreign keys,
+  idempotent save/unsave behavior, and audit entries.
+- JPEG/PNG/WebP poster upload, replacement, and removal with content-based
+  validation, 5 MB and dimension limits, server-generated keys, accessible
+  previews, safe broken-image handling, and a local server-only storage adapter.
+- Authenticated, tenant-aware poster delivery with `private, no-store`,
+  `nosniff`, and same-origin response headers. Unpublished posters are limited to
+  the owning club manager, college administrators, and platform administrators.
+- Transactional in-app notifications for event approval, rejection with reason,
+  cancellation, and registration confirmation/cancellation. Notifications are
+  written in the same transaction as the state change.
+- Poster lifecycle and replacement/removal audit actions (`POSTER_UPLOADED`,
+  `POSTER_REPLACED`, `POSTER_REMOVED`) alongside the existing event and
+  registration audit trail.
 - CLI-only super-admin bootstrap with no public endpoint and no default password.
-- Isolated Vitest integration suite against `campuspulse_test`, including
-  concurrency, tenant, lifecycle, auth, session, reset, rate-limit, CSRF, RBAC,
-  audit, and security tests.
+- Isolated Vitest integration suite against `campuspulse_test` with 168 passing
+  tests, including poster validation/storage/access/cleanup, notification
+  scoping, concurrency, tenant, lifecycle, auth, session, reset, rate-limit,
+  CSRF, RBAC, dashboard authorization, filtering, pagination, audit, and security
+  tests.
+- Playwright workflow coverage for create → preview → submit → approve → student
+  view → register → club registration list → cancel → replace poster →
+  access-control checks → remove → responsive screenshots.
 - Idempotent, fictional, development-only seed.
-- Design-system, database, authentication, security, and future-screen docs.
+- Design-system, database, authentication, dashboard, event-operations,
+  poster-storage, security, and future-screen docs.
 
 Intentionally deferred:
 
-- Student/club/college/super-admin dashboards and public business APIs.
-- OCR, poster uploads, duplicate-detection algorithms, and recommendations.
-- Email verification, notification delivery, and production SMTP configuration.
+- Public business APIs and any unauthenticated business endpoint.
+- OCR, duplicate-detection algorithms, recommendations, and QR check-in.
+- Email/push/SMS notification delivery and production SMTP configuration.
+  Notifications are in-app only.
+- Production object storage, a shared multi-instance poster volume, CDN
+  delivery, and poster malware scanning. The included adapter is local
+  development/self-hosted storage.
 - Production deployment, secret-manager integration, edge/HSTS hardening, and a
   penetration test.
 - PostgreSQL RLS. Tenant isolation is currently application-layer scoping plus
@@ -171,6 +205,7 @@ Copy `.env.example` to `.env.local`. `.env.local` is ignored by Git.
 | `SMTP_SECURE`                    | no       | `true` for implicit TLS; usually `false` with STARTTLS on port 587        |
 | `SMTP_USER` / `SMTP_PASSWORD`    | email    | Optional paired SMTP credentials; both or neither                         |
 | `EMAIL_FROM`                     | email    | Sender address, required when email is enabled                            |
+| `POSTER_STORAGE_DIR`             | no       | Local poster storage root; default `.data/posters`                        |
 | `DATABASE_POOL_MAX`              | no       | Pool size, default `10`                                                   |
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no       | Connection timeout, default `5000`                                        |
 | `DATABASE_IDLE_TIMEOUT_MS`       | no       | Idle timeout, default `30000`                                             |
@@ -261,14 +296,30 @@ The test runner:
 
 The suite covers database initialization/reuse/failure handling, tenant
 relationships and cross-college FK rejection, registration success/duplicates/
-deadlines/capacity/cancellation, event lifecycle and audit, club/role
-administration, audit redaction/rollback, security boundaries, concurrent
-capacity/duplicate races, student registration, Argon2id hashes, Better Auth
-sessions, logout/expiry/deleted sessions, disabled accounts, reset-token hashing,
-expiry/single use/session revocation, PostgreSQL rate limits, CSRF/origin checks,
-RBAC helpers, role-change session revocation, and CLI super-admin bootstrap.
-Tests run sequentially (`fileParallelism: false`, `maxWorkers: 1`) so database
-resets are deterministic.
+deadlines/capacity/cancellation, event lifecycle and audit, poster content
+validation, poster storage keys/path traversal, poster upload/replacement/
+removal/access control/storage failure/cleanup, notification scoping and retry
+guards, club/role administration, audit redaction/rollback, security boundaries,
+concurrent capacity/duplicate races, student registration, Argon2id hashes,
+Better Auth sessions, logout/expiry/deleted sessions, disabled accounts,
+reset-token hashing, expiry/single use/session revocation, PostgreSQL rate
+limits, CSRF/origin checks, RBAC helpers, role-change session revocation, and
+CLI super-admin bootstrap. Tests run sequentially (`fileParallelism: false`,
+`maxWorkers: 1`) so database resets are deterministic.
+
+### Browser workflow tests
+
+```powershell
+npm run test:e2e
+```
+
+Playwright uses `playwright.config.ts` and Chromium. It starts `npm run dev` on
+`http://localhost:3000` when no server is running, or reuses an existing
+development server. Do not run it against a stale production `next start`
+process. The workflow uses the seeded demo accounts and creates a new test event
+in the **development** database; it does not reset or truncate the database.
+Clear `rate_limit_entries` or wait for the login window if repeated runs hit
+“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`.
 
 ## Development and production commands
 
@@ -291,37 +342,51 @@ migrations or the seed automatically. A production deployment must run
 
 ```text
 prisma/
-  schema.prisma                 22-model multi-tenant + auth schema
+  schema.prisma                 23-model multi-tenant + auth schema
   migrations/                   applied SQL migrations
   seed.ts                       guarded fictional development seed
 scripts/
   bootstrap-super-admin.ts      CLI-only super-admin promotion
   check-db.ts                   database connection health check
 src/
-  app/                          App Router pages, auth pages, layouts, error boundaries
-  components/                   brand, layout, auth, and UI primitives
+  app/                          App Router pages, auth pages, dashboard routes
+  app/api/posters/              authenticated poster delivery route
+  app/student/                  student dashboard routes
+  app/club/                     club administrator routes
+  app/college/                  college administrator routes
+  app/platform/                 platform administrator routes
+  components/                   brand, layout, auth, dashboard, and UI primitives
   features/auth/                auth Server Actions and screens
+  features/dashboards/          dashboard Server Actions and forms
   features/landing/             verified 11-section landing page
   config/                       environment, site, and security config
-  server/auth/                  Better Auth, sessions, RBAC, reset, rate limits, audit
-  server/db/                    client, config, tenant, audit, transactions
+  server/auth/                  Better Auth, sessions, RBAC, page guards, audit
+  server/dashboards/            server-only dashboard access and query layer
+  server/db/                    client, config, tenant, audit, notifications
   server/email/                 optional SMTP delivery
+  server/posters/               content-based poster validation
+  server/storage/               server-only poster storage interface + local adapter
   server/errors.ts              domain error types
-  services/                     event, registration, club, user, authorization
+  services/                     event, registration, poster, notification, club, user domains
   generated/prisma/             generated client (not hand-edited)
 tests/
   global-setup.ts               test DB creation + migrate deploy
   setup.ts                      test URL/env guard
-  helpers/                      factories, auth helpers, guarded cleanup
+  helpers/                      factories, auth helpers, image fixtures, cleanup
   auth/                         auth, session, reset, rate-limit, CSRF, RBAC tests
+  dashboards/                   dashboard access, scoping, filtering, pagination
   db/                           client and tenant relationship tests
-  services/                     lifecycle, registration, security tests
+  e2e/                          Playwright poster/lifecycle workflows
+  services/                     lifecycle, registration, poster, notification, security tests
 docs/
   authentication.md             auth/session/RBAC/rate-limit/CSRF design
+  dashboards.md                 dashboard routes, authorization, actions, tests
   database.md                   ER diagram, tenancy, lifecycle, concurrency
   design-system.md              tokens, components, states, accessibility
-  future-screens.md             future student/admin screen specifications
-  security-review.md            Prompt 4 focused security review
+  event-operations.md           lifecycle, poster rules, notifications, audit
+  future-screens.md             screen specifications and implemented status
+  poster-storage.md             poster storage, validation, delivery, caveats
+  security-review.md            security review with Prompt 6 addendum
 ```
 
 ## Architecture
@@ -370,16 +435,58 @@ college.
   lifecycle transitions, authorization, cancellation cascade, audit.
 - `src/services/registrations.ts`: registration, deadline/window/capacity checks,
   duplicate prevention, cancellation, row locking, audit.
-- `src/services/clubs.ts`: college-scoped club approval/rejection.
+- `src/services/clubs.ts`: college-scoped club approval/rejection and active
+  club profile updates.
 - `src/services/users.ts`: constrained role changes with self-escalation guards,
   target-session revocation, and auth audit.
+- `src/services/user-status.ts`: college/platform account status changes with
+  session revocation and auth audit.
+- `src/services/colleges.ts`: college settings and platform-only college
+  lifecycle changes.
+- `src/services/saved-events.ts`: idempotent student saved events with tenant
+  checks and audit.
+- `src/services/student-profile.ts`: validated student profile and interest
+  updates.
+- `src/services/notifications.ts`: user-scoped notification read state.
+- `src/services/posters.ts`: content-validated poster upload/replacement/
+  removal, status and manager authorization, access-controlled delivery,
+  audit, and post-commit file cleanup.
+- `src/services/notification-recipients.ts`: active club-manager and confirmed
+  registrant recipient lookup inside the business transaction.
+- `src/services/attendance.ts`: post-start attended/no-show transitions.
 - `src/services/authorization.ts`: trusted actor type, active-account checks,
   role/college assertions, and club membership checks.
 - `src/services/validation.ts`: Zod input validation, date ordering, slugging.
 
+Poster storage is server-only under `src/server/storage/`; image validation is
+under `src/server/posters/`; notification inserts are in
+`src/server/db/notifications.ts`. See `docs/poster-storage.md` and
+`docs/event-operations.md`.
+
 Services accept a trusted `AuthenticatedActor` first argument. They reload the
 actor's role/college/membership state from PostgreSQL before acting. They are not
 exposed as public business APIs in this phase.
+
+### Dashboards and Server Actions
+
+- `src/server/auth/page-guard.ts` keeps users inside the correct role workspace
+  and redirects disabled or unauthenticated sessions safely.
+- `src/server/dashboards/access.ts` contains dashboard role, managed-club,
+  college-scope, and club-manager assertions.
+- `src/server/dashboards/queries.ts` is server-only. Every query accepts the
+  trusted actor, re-checks authorization, scopes by college/club, and returns real
+  database rows, counts, filters, and pagination.
+- `src/features/dashboards/actions.ts` contains dashboard Server Actions. Each
+  action checks the origin, loads the current actor, converts FormData into
+  service input, calls the existing domain service, revalidates affected routes,
+  and returns safe error states.
+- `src/components/dashboard/` contains the responsive role shell, navigation,
+  metric cards, accessible bar lists, event cards, and form primitives.
+- `src/app/student/`, `src/app/club/`, `src/app/college/`, and
+  `src/app/platform/` contain the four role-specific route trees.
+
+See `docs/dashboards.md` for the complete route map, authorization matrix, and
+Server Action sequence.
 
 ## Event lifecycle
 
@@ -397,12 +504,20 @@ Students cannot approve, publish, or transition events. Platform administrators
 may review and transition existing events across colleges and approve clubs, but
 event creation is club-manager-only because the composite creator foreign key
 requires a same-college user. Invalid transitions and stale concurrent
-transitions are rejected. Cancelling an event cancels confirmed registrations in
-the same transaction.
+transitions are rejected. Cancelling an event cancels confirmed registrations and
+writes cancellation notifications in the same transaction. Approval and
+rejection write club-manager notifications in the same transaction.
+
+Poster management follows the lifecycle: allowed for `DRAFT`, `REJECTED`, and
+`PUBLISHED`; locked for `PENDING_APPROVAL`, `CANCELLED`, and `COMPLETED`.
+Published posters are visible to authenticated same-college users; unpublished
+posters are limited to the owning club manager, same-college college
+administrators, and platform administrators.
 
 See `docs/database.md` for the full authorization matrix and the justification
 for the additional `PENDING_APPROVAL -> CANCELLED` and
-`PUBLISHED -> COMPLETED` transitions.
+`PUBLISHED -> COMPLETED` transitions. See `docs/event-operations.md` for the
+operational matrix and `docs/poster-storage.md` for storage and delivery.
 
 ## Registration concurrency
 
@@ -416,12 +531,16 @@ Registration is protected at the database level, not by a frontend check:
 4. Active registrations (`CONFIRMED` + `ATTENDED`) are counted while the event
    row is locked.
 5. The registration is inserted or reactivated.
-6. The audit record is written in the same transaction.
+6. The confirmation notification and audit record are written in the same
+   transaction.
 
 `@@unique([eventId, studentProfileId])` prevents duplicate rows. Prisma `P2002`
 is translated to `ALREADY_REGISTERED`; `P2034` serialization/deadlock errors are
 retried up to three times. Concurrent tests assert capacity 1 never becomes two
-confirmed rows and duplicate concurrent attempts produce one row.
+confirmed rows and duplicate concurrent attempts produce one row. Cancellation
+updates the registration, writes the cancellation notification, and writes the
+audit record in one transaction; a repeated cancellation is rejected by the
+state guard rather than creating a duplicate notification.
 
 ## Tenant isolation and audit
 
@@ -435,12 +554,15 @@ requests.** Authorization is enforced separately by the auth/session layer and
 service guards. PostgreSQL RLS is still not implemented.
 
 Audit records cover event creation/updates, approval/rejection/cancellation,
-club approval/rejection, role changes, and registration changes. Auth events
-cover registration, login, logout, reset, session revocation, and CLI bootstrap.
-Metadata is redacted for passwords, secrets, tokens, authorization headers,
-cookies, API keys, credentials, and session values. There is no application
-service to edit or delete audit rows. Database-level immutability is not
-implemented.
+poster upload/replacement/removal, club approval/rejection/profile updates,
+role/status/profile changes, college settings/lifecycle changes, saved events,
+notification reads, attendance, and registration changes. Auth events cover
+registration, login, logout, reset, session revocation, and CLI bootstrap.
+Poster audit metadata includes the event, club, previous poster ID when
+replacing, detected MIME type, byte size, width, and height. Metadata is redacted
+for passwords, secrets, tokens, authorization headers, cookies, API keys,
+credentials, and session values. There is no application service to edit or
+delete audit rows. Database-level immutability is not implemented.
 
 ## Security decisions and limitations
 
@@ -452,7 +574,13 @@ implemented.
 - IP rate limiting trusts `x-forwarded-for`, `x-real-ip`, or `cf-connecting-ip`.
   Deploy behind a trusted proxy that overwrites these headers.
 - No email-verification flow exists; new students have `emailVerified=false`.
-- No public business API routes, dashboards, file uploads, or OCR exist.
+- The only upload surface is authenticated event-poster management. There is no
+  public business API, general media library, OCR, or QR check-in.
+- Poster storage is a local filesystem adapter for development and
+  single-instance self-hosting. It is not shared, replicated, CDN-backed, or
+  malware-scanned. Do not serve the storage directory directly.
+- Notifications are in-app only. No email, push, SMS, outbox, or background
+  delivery worker exists.
 - The seed is development-only and local-only; it is not a production data path.
 - Test cleanup is guarded by an exact database name and `current_database()`
   check. Tests must never point at the development database.
@@ -573,27 +701,57 @@ npx prisma migrate status
 npm run db:health
 npm test
 npm run build
+npm run test:e2e
 ```
 
 Then start `npm run dev` and verify the landing page plus `/login`, `/register`,
 `/forgot-password`, `/reset-password`, `/unauthorized`, `/account-disabled`, and
-`/account` at desktop and mobile widths. Check the mobile menu, fonts, browser
-console, session persistence, logout, and generic auth errors. Stop any stale
-production server before rebuilding.
+`/account`. Sign in as each role and verify the four dashboard overviews plus
+their role-specific routes:
+
+- `/student`, `/student/discover`, `/student/registrations`, `/student/saved`,
+  `/student/calendar`, `/student/notifications`, `/student/profile`
+- `/club`, `/club/events`, `/club/registrations`, `/club/attendance`,
+  `/club/analytics`, `/club/settings`
+- `/college`, `/college/events`, `/college/approvals`, `/college/clubs`,
+  `/college/users`, `/college/analytics`, `/college/audit-logs`,
+  `/college/settings`
+- `/platform`, `/platform/colleges`, `/platform/users`, `/platform/analytics`,
+  `/platform/audit-logs`, `/platform/settings`
+
+For the Prompt 6 poster workflow, sign in as a club administrator, create a
+draft with a PNG/JPEG/WebP poster, confirm the preview and current poster, submit
+for approval, approve it as a college administrator, view it as a same-college
+student, register, confirm the registration notification, cancel, replace the
+poster, verify the old URL returns `404`, verify cross-college and unauthenticated
+access is denied, then remove the poster and confirm the empty state.
+
+Check the mobile drawer, keyboard focus, fonts, browser console, session
+persistence, logout, generic auth errors, filters, pagination, empty states, and
+cross-role redirects. Verify dashboard and event-detail layouts at 360, 390, 768,
+1024, 1280, and 1440 pixel widths. Stop any stale production server before
+rebuilding.
 
 ## Documentation
 
 - [Authentication, sessions, RBAC, rate limits, CSRF, bootstrap](docs/authentication.md)
+- [Dashboard routes, authorization, Server Actions, saved events](docs/dashboards.md)
 - [Database architecture, ER diagram, tenancy, lifecycle, concurrency](docs/database.md)
+- [Event lifecycle, poster rules, notifications, audit](docs/event-operations.md)
+- [Poster storage, validation, delivery, production caveats](docs/poster-storage.md)
 - [Design system](docs/design-system.md)
 - [Future screen specifications](docs/future-screens.md)
 - [Focused security review](docs/security-review.md)
 
 ## Scope boundary
 
-Prompt 4 stops before student/club/college/super-admin dashboards, OCR,
-recommendation algorithms, notifications, production deployment, paid services,
-or external account changes. The source is published to GitHub, but PostgreSQL
-RLS, production SMTP, and deployment hardening remain future work. Do not expose
-the services as public business APIs until route-level authorization and
+Prompt 6 stops after verified event operations: the existing lifecycle,
+registration, and dashboard behavior; poster upload/replacement/removal and
+authenticated delivery; transactional in-app notifications; and poster/lifecycle
+audit coverage. OCR, duplicate-detection algorithms, recommendations, production
+email/push/SMS notification delivery, production object storage, public business
+APIs, production deployment, paid services, and external account changes remain
+future work. The source is published to GitHub, but PostgreSQL RLS, production
+SMTP, shared poster storage, and deployment hardening remain future work. Do not
+expose the services as public business APIs until route-level authorization and
 production hardening are reviewed for that phase.

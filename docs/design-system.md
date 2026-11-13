@@ -181,19 +181,40 @@ Suggested scale:
 - `aria-hidden="true"`; the surrounding link supplies the accessible name.
 - Do not recolor individual paths outside the token system.
 
+### Dashboard shell and primitives
+
+- `src/components/dashboard/dashboard-shell.tsx` is the shared authenticated
+  workspace shell. It provides a desktop sidebar, a mobile drawer, role-specific
+  navigation, workspace identity, user identity, sign-out, and a skip link.
+- Role workspaces use the existing palette with different tones: student
+  `forest`, club `signal`, college `ink`, and platform `ink`.
+- `src/components/dashboard/primitives.tsx` provides page headers, section cards,
+  metric cards, inline metadata, and dependency-free bar lists.
+- Bar lists include a visually hidden table fallback so the same counts remain
+  available to screen-reader users.
+- Dashboard forms reuse the existing button, field, badge, event-card, and state
+  primitives rather than introducing a second visual language.
+- Dashboard pages use the college timezone for displayed event dates and label
+  timezone-sensitive fields.
+
 ## 6. Responsive behavior
 
-- Mobile first; the landing page is verified at 390 px and desktop at 1440 px.
+- Mobile first; the landing page and auth screens are verified at mobile and
+  desktop widths. Dashboard layouts are verified at 360, 390, 768, 1024, 1280,
+  and 1440 px.
 - Header: desktop navigation at `lg`; mobile trigger below `lg`; mobile panel
   closes on link click, Escape, outside pointer, and focus moves into the panel.
+- Dashboard shell: sidebar is fixed at `lg` and above; below `lg` the same
+  navigation opens in a labelled drawer with a backdrop and Escape handling.
 - Hero: single column below `lg`; two-column editorial layout at `lg`.
 - Event grids: one column on mobile, two or three at `md`/`lg` depending on
   content density.
 - Event list rows become stacked cards below `sm`.
 - Dialogs use `w-[calc(100%-2rem)]` and `max-h-[calc(100dvh-2rem)]` so they fit
   small screens.
-- Tables on future admin screens should become labelled stacked records below
-  `md`, not horizontally scroll as the only mobile strategy.
+- Dashboard tables use horizontal scrolling only for dense audit/log views and
+  keep primary dashboard content stacked below `md`. Avoid making a wide table
+  the only way to read essential mobile content.
 - Minimum touch target: 44 × 44 px for primary controls; icon buttons are 40 px
   but should have adequate surrounding space.
 - Test with 200% zoom and at 320 px width before shipping a new screen.
@@ -213,8 +234,8 @@ Suggested scale:
   scroll behavior.
 - Maintain readable line lengths (`max-w-2xl`/`max-w-3xl` for prose).
 - Test keyboard-only navigation, screen-reader names, and zoom.
-- Use `aria-live` for async status updates on future dashboards; do not
-  over-announce every loading skeleton.
+- Use `aria-live` for dashboard action feedback; do not over-announce every
+  loading skeleton.
 
 ## 8. Motion
 

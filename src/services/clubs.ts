@@ -6,13 +6,24 @@ import { prisma } from "@/server/db/client";
 import { writeAuditLog } from "@/server/db/audit";
 import { runInTransaction } from "@/server/db/transactions";
 import { ActorNotAuthorizedError, DomainError, InvalidTransitionError } from "@/server/errors";
-import { assertActorActive, isSuperAdmin, type AuthenticatedActor } from "@/services/authorization";
+import {
+  assertActorActive,
+  assertClubManagerFor,
+  isSuperAdmin,
+  type AuthenticatedActor,
+} from "@/services/authorization";
 import { parseServiceInput, uuidSchema } from "@/services/validation";
 
 const clubDecisionSchema = z.object({
   clubId: uuidSchema,
   decision: z.enum(["APPROVE", "REJECT"]),
   reason: z.string().trim().max(500).optional(),
+});
+
+const updateClubProfileSchema = z.object({
+  clubId: uuidSchema,
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(2000).nullable().optional(),
 });
 
 /**
@@ -79,5 +90,62 @@ export async function decideClub(actor: AuthenticatedActor, input: unknown) {
     });
 
     return tx.club.findUniqueOrThrow({ where: { id: club.id } });
+  });
+}
+
+/**
+ * Club profile changes are limited to the active club's president/officer.
+ * Ownership, college, status, and approval fields are never accepted from the
+ * browser.
+ */
+export async function updateClubProfile(actor: AuthenticatedActor, input: unknown) {
+  assertActorActive(actor);
+  const data = parseServiceInput(updateClubProfileSchema, input);
+
+  return runInTransaction(prisma, async (tx) => {
+    const club = await tx.club.findUnique({
+      where: { id: data.clubId },
+      select: {
+        id: true,
+        collegeId: true,
+        status: true,
+        name: true,
+        description: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!club || club.deletedAt) {
+      throw new DomainError("NOT_FOUND", "The requested club does not exist.", 404);
+    }
+
+    if (club.status !== "ACTIVE") {
+      throw new ActorNotAuthorizedError("Only active clubs can update their profile.");
+    }
+
+    assertClubManagerFor(actor, club.id, club.collegeId);
+
+    const description = data.description?.trim() ? data.description.trim() : null;
+
+    const updated = await tx.club.update({
+      where: { id: club.id },
+      data: { name: data.name, description },
+    });
+
+    await writeAuditLog(tx, {
+      collegeId: club.collegeId,
+      actorUserId: actor.id,
+      action: "CLUB_UPDATED",
+      entityType: "Club",
+      entityId: club.id,
+      metadata: {
+        changedFields: [
+          ...(club.name !== data.name ? ["name"] : []),
+          ...(club.description !== description ? ["description"] : []),
+        ],
+      },
+    });
+
+    return updated;
   });
 }

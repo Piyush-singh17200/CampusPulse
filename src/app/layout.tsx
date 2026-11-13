@@ -57,7 +57,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${manrope.variable} ${instrumentSerif.variable}`}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${manrope.variable} ${instrumentSerif.variable}`}
+    >
       <body className="min-h-screen bg-canvas font-sans text-ink antialiased">{children}</body>
     </html>
   );

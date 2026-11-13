@@ -1,8 +1,10 @@
 # Authentication, sessions, and authorization
 
-Scope: Prompt 4 authentication and server-side authorization for CampusPulse.
-This document describes the implemented controls and the remaining limitations.
-It is not a production-readiness claim.
+Scope: Prompt 4 authentication and server-side authorization for CampusPulse,
+extended in Prompt 5 with dashboard route guards and role workspace access, and
+in Prompt 6 with authenticated poster management and poster delivery. This
+document describes the implemented controls and the remaining limitations. It is
+not a production-readiness claim.
 
 ## Library decision
 
@@ -90,6 +92,43 @@ The actor is built from the verified session plus a fresh database read.
 - Active club-membership checks.
 - `requireAuthenticatedUser`, `requireRole`, `requireCollegeAccess`,
   `requireCollegeAdmin`, `requirePlatformAdmin`, and `requireClubAccess`.
+
+Prompt 5 adds a dashboard layer on top of the same actor model:
+
+- `src/server/auth/page-guard.ts` implements `requireDashboardRole(role)` for the
+  four workspace layouts. It redirects unauthenticated users, disabled accounts,
+  and users who open the wrong role workspace.
+- `src/server/dashboards/access.ts` provides `assertStudentDashboard`,
+  `assertClubDashboard`, `assertCollegeDashboard`, `assertPlatformDashboard`,
+  `managedClubIds`, `assertManagedClub`, and `assertCollegeScope`.
+- Every dashboard page calls `requireDashboardRole` and then a query function
+  that re-checks the role. A layout guard is not the only authorization check.
+- Club dashboards require an active `PRESIDENT` or `OFFICER` membership. A
+  requested `?club=` ID is checked against the actor's managed clubs.
+- College dashboards use the actor's database-loaded `collegeId`; a browser
+  cannot select another college.
+- Platform dashboards require `SUPER_ADMIN`; they do not use an impersonation
+  cookie or accept a target actor identity from the browser.
+
+Prompt 6 reuses the same actor model:
+
+- Poster upload/replacement/removal requires an active owning-club
+  president/officer and is limited to `DRAFT`, `REJECTED`, and `PUBLISHED`
+  events. The mutations are same-origin Server Actions; no poster path or actor
+  identity is accepted from the browser.
+- `GET /api/posters/[posterId]` requires an authenticated session. Published
+  posters are visible to authenticated same-college users while the event and
+  club are active; unpublished posters are limited to the owning club manager,
+  same-college college administrators, and platform administrators. Missing,
+  unauthorized, cross-tenant, and storage-missing assets return `404`.
+- Notification rows are scoped by the recipient user and college. Recipients are
+  derived from active club memberships or confirmed registrations inside the
+  same transaction as the state change.
+
+Dashboard Server Actions call `assertSameOrigin()` and
+`requireAuthenticatedUser()` before invoking a trusted-actor service. The service
+then reloads authorization state and applies the domain rules. Browser form data
+may contain object IDs, but never the actor ID, role, college, or club membership.
 
 Deny-by-default behavior applies. Unauthorized actions return safe authorization
 errors; cross-tenant object access returns a not-found-style response where
@@ -212,9 +251,15 @@ The auth suite covers:
   window reset, and cleanup.
 - Origin/CSRF checks, actor reload, RBAC helpers, tenant isolation, role-change
   session revocation, and CLI bootstrap.
+- Dashboard access assertions, role/workspace mismatches, active club-manager
+  membership checks, college-scope checks, saved-event tenant isolation,
+  notification ownership, attendance authorization, user-status session
+  revocation, cross-tenant dashboard query scoping, poster management
+  authorization, and authenticated poster delivery access.
 
 Tests run against the isolated `campuspulse_test` database and are not a
-substitute for production SMTP, deployment, or RLS testing.
+substitute for production SMTP, deployment, or RLS testing. See
+`docs/dashboards.md` for the full dashboard route and action map.
 
 ## Remaining limitations
 

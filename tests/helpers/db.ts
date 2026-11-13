@@ -11,6 +11,7 @@ const TABLES = [
   "event_feedback",
   "event_posters",
   "event_registrations",
+  "saved_events",
   "event_categories",
   "events",
   "notifications",

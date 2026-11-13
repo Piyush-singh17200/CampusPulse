@@ -24,6 +24,9 @@ export async function loadActorContext(userId: string): Promise<AuthenticatedAct
       role: true,
       status: true,
       deletedAt: true,
+      college: {
+        select: { status: true, deletedAt: true },
+      },
       clubMemberships: {
         where: { status: "ACTIVE" },
         select: { clubId: true, role: true, status: true },
@@ -32,6 +35,10 @@ export async function loadActorContext(userId: string): Promise<AuthenticatedAct
   });
 
   if (!actor || actor.deletedAt || actor.status !== "ACTIVE") {
+    return null;
+  }
+
+  if (actor.college && (actor.college.deletedAt || actor.college.status !== "ACTIVE")) {
     return null;
   }
 

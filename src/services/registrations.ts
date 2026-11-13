@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { RegistrationStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db/client";
 import { writeAuditLog } from "@/server/db/audit";
+import { createNotifications } from "@/server/db/notifications";
 import { isPrismaUniqueConstraintError, runInTransaction } from "@/server/db/transactions";
 import {
   ActorNotAuthorizedError,
@@ -87,6 +88,7 @@ export async function registerForEvent(actor: AuthenticatedActor, input: unknown
         select: {
           id: true,
           collegeId: true,
+          title: true,
           status: true,
           startsAt: true,
           registrationOpensAt: true,
@@ -183,6 +185,17 @@ export async function registerForEvent(actor: AuthenticatedActor, input: unknown
             },
           });
 
+      await createNotifications(tx, [
+        {
+          collegeId: event.collegeId,
+          userId: actor.id,
+          type: "REGISTRATION_UPDATE",
+          title: "Registration confirmed",
+          body: `You are registered for "${event.title}".`,
+          actionUrl: `/student/events/${event.id}`,
+        },
+      ]);
+
       await writeAuditLog(tx, {
         collegeId: event.collegeId,
         actorUserId: actor.id,
@@ -238,7 +251,12 @@ export async function cancelRegistration(actor: AuthenticatedActor, input: unkno
           studentProfileId: studentProfile.id,
         },
       },
-      select: { id: true, status: true, collegeId: true },
+      select: {
+        id: true,
+        status: true,
+        collegeId: true,
+        event: { select: { id: true, title: true } },
+      },
     });
 
     if (!registration || registration.collegeId !== studentProfile.collegeId) {
@@ -259,6 +277,17 @@ export async function cancelRegistration(actor: AuthenticatedActor, input: unkno
     if (result.count !== 1) {
       throw new DomainError("CONFLICT", "The registration changed while it was cancelled.", 409);
     }
+
+    await createNotifications(tx, [
+      {
+        collegeId: registration.collegeId,
+        userId: actor.id,
+        type: "REGISTRATION_UPDATE",
+        title: "Registration cancelled",
+        body: `Your registration for "${registration.event.title}" was cancelled.`,
+        actionUrl: `/student/events/${registration.event.id}`,
+      },
+    ]);
 
     await writeAuditLog(tx, {
       collegeId: registration.collegeId,

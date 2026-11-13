@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/tests/.tmp/
+
+# local poster storage (never web-accessible)
+/.data/
 
 # next.js
 /.next/

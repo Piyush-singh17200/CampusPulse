@@ -1,10 +1,14 @@
 # CampusPulse database architecture
 
-This document describes the PostgreSQL/Prisma layer through Prompt 4. The
-database now includes Better Auth session/account tables plus custom reset,
-rate-limit, and anonymous auth-audit tables. The business services remain
-server-only building blocks and are not exposed through public business API
-routes; auth mutations run through Server Actions.
+This document describes the PostgreSQL/Prisma layer through Prompt 6. The
+database now includes Better Auth session/account tables, custom reset,
+rate-limit, and anonymous auth-audit tables, persistent saved events for the
+student dashboard, poster metadata and audit actions, and transactional in-app
+notifications for event moderation and registration changes. The business
+services and dashboard queries remain server-only building blocks and are not
+exposed through public business API routes; auth and dashboard mutations run
+through Server Actions. Poster bytes live in the configured storage adapter, not
+in PostgreSQL; see `docs/poster-storage.md`.
 
 ## 1. Design principles
 
@@ -17,7 +21,9 @@ routes; auth mutations run through Server Actions.
   club memberships from PostgreSQL. They never accept `actorUserId`, `role`,
   `collegeId`, `clubId` ownership, or event ownership from a browser.
 - **Atomic business actions.** Event transitions, registration changes, club
-  decisions, role changes, and their audit records share one transaction.
+  decisions, role changes, poster metadata swaps, in-app notifications, and
+  their audit records share one transaction. Poster bytes are written first and
+  cleaned up if the database transaction fails.
 - **Fail closed.** Missing/invalid tenant context and unsafe test/seed targets
   throw instead of falling back to another college or database.
 - **No credential logging.** Configuration errors log field names, never values.
@@ -25,7 +31,7 @@ routes; auth mutations run through Server Actions.
 
 ## 2. Models
 
-The schema has 22 models. The 16 business models are:
+The schema has 23 models. The 17 business models are:
 
 | Model               | Purpose                                         | Tenant key                                |
 | ------------------- | ----------------------------------------------- | ----------------------------------------- |
@@ -36,11 +42,12 @@ The schema has 22 models. The 16 business models are:
 | `ClubMembership`    | User membership and club role                   | `collegeId`                               |
 | `Interest`          | Platform-wide interest taxonomy                 | global                                    |
 | `StudentInterest`   | Student-interest join                           | `collegeId`                               |
+| `SavedEvent`        | Persistent student event shortlist              | `collegeId`                               |
 | `Category`          | College-specific event category                 | `collegeId`                               |
 | `Event`             | Event and lifecycle state                       | `collegeId`                               |
 | `EventCategory`     | Event-category join                             | `collegeId`                               |
 | `EventRegistration` | Student registration                            | `collegeId`                               |
-| `EventPoster`       | Poster metadata and OCR state                   | `collegeId`                               |
+| `EventPoster`       | Poster metadata, dimensions, and OCR state      | `collegeId`                               |
 | `EventFeedback`     | Post-event feedback                             | `collegeId`                               |
 | `Notification`      | User notification                               | `collegeId`                               |
 | `EventDuplicate`    | Moderation duplicate candidate                  | `collegeId`                               |
@@ -80,7 +87,13 @@ The audit enum was extended by
 `EVENT_CREATED` and `EVENT_UPDATED`. The additive
 `prisma/migrations/20261109081554_auth_sessions_rbac/migration.sql` adds the auth
 tables, `User` auth fields, `AuthAuditEventType`, and rate-limit/reset indexes
-without resetting existing data.
+without resetting existing data. The additive
+`prisma/migrations/20261110000000_dashboard_saved_events/migration.sql` adds the
+`saved_events` table, its composite tenant foreign keys and unique pair, and the
+`SAVED_EVENT_CHANGED` and `NOTIFICATION_READ` audit actions. The additive
+`prisma/migrations/20261111000000_prompt6_poster_audit/migration.sql` extends
+`AuditAction` with `POSTER_UPLOADED`, `POSTER_REPLACED`, and `POSTER_REMOVED`.
+Existing migrations and rows are untouched.
 
 ## 3. ER diagram
 
@@ -92,6 +105,7 @@ erDiagram
     College ||--o{ ClubMembership : "scopes"
     College ||--o{ Category : "defines"
     College ||--o{ Event : "owns"
+    College ||--o{ SavedEvent : "scopes"
     College ||--o{ AuditLog : "scopes"
 
     User ||--o| StudentProfile : "has"
@@ -110,6 +124,7 @@ erDiagram
     Club ||--o{ Event : "hosts"
 
     StudentProfile ||--o{ StudentInterest : "selects"
+    StudentProfile ||--o{ SavedEvent : "saves"
     StudentProfile ||--o{ EventRegistration : "registers"
     StudentProfile ||--o{ EventFeedback : "writes"
 
@@ -117,6 +132,7 @@ erDiagram
 
     Category ||--o{ EventCategory : "classifies"
     Event ||--o{ EventCategory : "tagged"
+    Event ||--o{ SavedEvent : "shortlisted"
     Event ||--o{ EventRegistration : "receives"
     Event ||--o{ EventPoster : "has"
     Event ||--o{ EventFeedback : "receives"
@@ -147,6 +163,13 @@ erDiagram
         varchar rollNumber
         varchar department
         int graduationYear
+    }
+    SavedEvent {
+        uuid id PK
+        uuid collegeId FK
+        uuid studentProfileId FK
+        uuid eventId FK
+        timestamp createdAt
     }
     Club {
         uuid id PK
@@ -194,6 +217,11 @@ erDiagram
         uuid collegeId FK
         uuid eventId FK
         varchar storageKey
+        varchar mimeType
+        int byteSize
+        int width
+        int height
+        varchar altText
         enum ocrStatus
         boolean isPrimary
     }
@@ -285,7 +313,7 @@ before production multi-tenant deployment, with transaction-scoped
 `SET LOCAL app.college_id` and policies on every tenant-owned table.
 
 Composite foreign keys protect **database relationships**. They do not
-authorize API requests. Prompt 4 must independently enforce authentication and
+authorize API requests. Application code must independently enforce authentication and
 application-layer authorization on every route.
 
 ## 5. Event lifecycle
@@ -328,8 +356,17 @@ review. A rejected event must return to `DRAFT` before resubmission.
 The transition uses an `updateMany` guarded by the expected current status. If a
 concurrent actor changed the event first, the update count is zero and a
 `CONFLICT` domain error is returned. Cancelling an event also cancels all
-`CONFIRMED` registrations in the same transaction. The audit record is written
+`CONFIRMED` registrations and creates cancellation notifications for those
+students in the same transaction. Approval and rejection create notifications
+for active club managers in the same transaction. The audit record is written
 inside that transaction.
+
+Poster management follows the same lifecycle: upload/replace/remove is allowed
+for `DRAFT`, `REJECTED`, and `PUBLISHED`, and locked for `PENDING_APPROVAL`,
+`CANCELLED`, and `COMPLETED`. The poster row and its audit action share one
+transaction; the file write precedes the transaction and is cleaned up if the
+transaction fails. See `docs/event-operations.md` and
+`docs/poster-storage.md`.
 
 ## 6. Registration concurrency
 
@@ -351,7 +388,7 @@ inside that transaction.
 5. Count active registrations (`CONFIRMED` + `ATTENDED`) while the event row is
    locked.
 6. Insert or reactivate the registration.
-7. Write the audit record in the same transaction.
+7. Write the confirmation notification and audit record in the same transaction.
 
 The event row is the serialization point. Two simultaneous registration
 transactions for the same event cannot both count the pre-insert state and then
@@ -365,6 +402,9 @@ Additional protection:
 - `P2034` serialization/deadlock errors are retried up to three times.
 - A cancelled registration may be reactivated only when the event is still open
   and capacity remains.
+- Cancellation writes the cancellation notification and audit record in the same
+  transaction and is guarded by the current `CONFIRMED` status, so a repeated
+  cancellation cannot create a duplicate notification.
 - Capacity is never checked only in the browser or only in a pre-insert count.
 
 The transaction options are `maxWait: 5000` and `timeout: 10000`. The
@@ -382,17 +422,26 @@ and asserts exactly one `CONFIRMED` row.
 
 Actions currently written by services:
 
-| Action                            | Trigger                                  |
-| --------------------------------- | ---------------------------------------- |
-| `EVENT_CREATED`                   | `createEventDraft`                       |
-| `EVENT_UPDATED`                   | `updateEvent`                            |
-| `EVENT_APPROVED`                  | `PENDING_APPROVAL → PUBLISHED`           |
-| `EVENT_REJECTED`                  | `PENDING_APPROVAL → REJECTED`            |
-| `EVENT_CANCELLED`                 | any allowed transition to `CANCELLED`    |
-| `EVENT_STATUS_CHANGED`            | other allowed lifecycle transitions      |
-| `CLUB_APPROVED` / `CLUB_REJECTED` | `decideClub`                             |
-| `USER_ROLE_CHANGED`               | `changeUserRole`                         |
-| `REGISTRATION_STATUS_CHANGED`     | registration, reactivation, cancellation |
+| Action                            | Trigger                                              |
+| --------------------------------- | ---------------------------------------------------- |
+| `EVENT_CREATED`                   | `createEventDraft`                                   |
+| `EVENT_UPDATED`                   | `updateEvent`                                        |
+| `EVENT_APPROVED`                  | `PENDING_APPROVAL → PUBLISHED`                       |
+| `EVENT_REJECTED`                  | `PENDING_APPROVAL → REJECTED`                        |
+| `EVENT_CANCELLED`                 | any allowed transition to `CANCELLED`                |
+| `EVENT_STATUS_CHANGED`            | other allowed lifecycle transitions                  |
+| `POSTER_UPLOADED`                 | first primary poster upload                          |
+| `POSTER_REPLACED`                 | replacement of an existing primary poster            |
+| `POSTER_REMOVED`                  | removal of an existing primary poster                |
+| `CLUB_APPROVED` / `CLUB_REJECTED` | `decideClub`                                         |
+| `CLUB_UPDATED`                    | `updateClubProfile`                                  |
+| `USER_ROLE_CHANGED`               | `changeUserRole`                                     |
+| `USER_STATUS_CHANGED`             | `changeUserStatus`                                   |
+| `USER_PROFILE_UPDATED`            | `updateStudentProfile`                               |
+| `COLLEGE_UPDATED`                 | college settings/lifecycle changes                   |
+| `SAVED_EVENT_CHANGED`             | save/unsave event                                    |
+| `NOTIFICATION_READ`               | mark one/all notifications read                      |
+| `REGISTRATION_STATUS_CHANGED`     | registration, reactivation, cancellation, attendance |
 
 Audit rows record `actorUserId`, action, `entityType`, `entityId`, optional
 `collegeId`, redacted metadata, and `createdAt`. No service exposes update or
@@ -434,8 +483,9 @@ In a hosted environment, `DATABASE_URL` should be the pooled connection and
 - RLS is not implemented. Application-layer scoping and composite foreign keys
   are the current tenant boundary; they do not authorize API requests by
   themselves.
-- Auth mutations have CSRF/origin checks and PostgreSQL rate limiting. Public
-  business APIs, file-upload validation, and dashboards remain unimplemented.
+- Auth and dashboard mutations have CSRF/origin checks; auth mutations also use
+  PostgreSQL rate limiting. Public business APIs and file-upload validation
+  remain unimplemented.
 - SMTP is not configured; production password recovery is not operational here.
 - Audit immutability is application-level only.
 - The seed uses local-only Docker credentials and fictional data. It is not a

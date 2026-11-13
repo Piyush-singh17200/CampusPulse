@@ -1,8 +1,14 @@
 # Future screen specifications
 
-These screens are **specifications only**. Prompt 3.1 does not implement
-authentication, dashboards, OCR, recommendations, uploads, or admin routes. The
-service-layer rules in `src/services` are the intended backend contract.
+These screens began as specifications. Prompt 5 implements the student, club
+administrator, college administrator, and platform administrator dashboard
+routes described here; see `docs/dashboards.md` for the actual route map and
+authorization model. Prompt 6 implements event poster upload, replacement, and
+removal with authenticated delivery; see `docs/poster-storage.md` and
+`docs/event-operations.md`. OCR, crop/focal-point editing, duplicate-detection
+algorithms, recommendations, email/push/SMS notification delivery, and QR
+check-in remain future work. The service-layer rules in `src/services` remain
+the backend contract.
 
 Common requirements for every screen:
 
@@ -316,14 +322,14 @@ stacked with status and date first.
 **Purpose:** Create a complete draft event with safe defaults.
 
 **Main components:** Multi-step or single-page form: basics, schedule,
-registration, venue/online, capacity, categories, poster (future), review;
-save-draft and submit-for-review actions; validation summary.
+registration, venue/online, capacity, categories, poster, review; save-draft and
+submit-for-review actions; validation summary.
 
 **Data required:** Actor's authorized clubs; college categories; timezone;
 existing slug availability; club status; policy text.
 
-**User actions:** Save draft, submit for approval, add categories, upload poster
-(future), preview, discard with confirmation.
+**User actions:** Save draft, submit for approval, add categories, upload a
+JPEG/PNG/WebP poster, preview, discard with confirmation.
 
 **Loading state:** Submit pending state; disable duplicate submission; show
 “Saving draft…” then the resulting status.
@@ -346,13 +352,14 @@ date/time inputs use native pickers where possible.
 **Purpose:** Correct a draft or rejected event before resubmission.
 
 **Main components:** Same form as creation; current status banner; rejection
-reason; change summary; save and submit actions; audit/activity note.
+reason; change summary; poster manager; save and submit actions; audit/activity
+note.
 
 **Data required:** Event and club; current fields; status; rejection reason;
 registration count; categories; poster; audit history.
 
-**User actions:** Edit draft/rejected fields, save, resubmit, cancel pending
-event, view rejection reason.
+**User actions:** Edit draft/rejected fields, upload/replace/remove a poster for
+allowed statuses, save, resubmit, cancel pending event, view rejection reason.
 
 **Loading state:** Form skeleton; disable save until the current version loads.
 
@@ -363,43 +370,53 @@ cross-tenant.
 explain. Field errors preserve input.
 
 **Permissions:** Club manager for the event's active club; only `DRAFT` and
-`REJECTED` are editable. The current service also allows a college administrator
-in the event's college to edit a draft/rejected event; a stricter product policy
-can separate review from editing if desired. Platform administrators can act
-across colleges but cannot create a club-owned event because of the composite
-creator foreign key.
+`REJECTED` event fields are editable. Poster upload/replace/remove is also
+allowed for `PUBLISHED` events, but locked for `PENDING_APPROVAL`, `CANCELLED`,
+and `COMPLETED`. The current service also allows a college administrator in the
+event's college to edit a draft/rejected event; a stricter product policy can
+separate review from editing if desired. Platform administrators can act across
+colleges but cannot create a club-owned event because of the composite creator
+foreign key.
 
 **Mobile layout:** Single column; status/rejection banner first; sticky action
 bar; destructive actions in an overflow menu with confirmation.
 
 ### 13. Poster upload
 
+**Status:** Implemented in Prompt 6. Crop/focal-point editing and OCR remain
+future work.
+
 **Purpose:** Attach a safe, accessible poster to an event.
 
-**Main components:** Drop zone/file picker; file requirements; preview; alt-text
-field; crop/focal point (future); upload progress; remove/replace; OCR status.
+**Main components:** File picker; JPEG/PNG/WebP requirements; preview; alt-text
+field; current-poster display; replace/remove actions; safe broken-image
+fallback. Crop/focal point and OCR status are future additions.
 
-**Data required:** Event/club authorization; allowed MIME types and size limits;
-storage key; image dimensions; alt text; OCR status.
+**Data required:** Event/club authorization; detected MIME type, byte size,
+dimensions, and alt text; a server-generated storage key that is never exposed
+to the browser; OCR status only when OCR is implemented.
 
-**User actions:** Choose file, preview, set alt text, upload, replace, remove,
-request OCR.
+**User actions:** Choose file, preview, set alt text, upload, replace, remove.
+OCR requests remain future work.
 
-**Loading state:** Upload progress and processing state; prevent duplicate
-uploads.
+**Loading state:** Upload/replace pending state; prevent duplicate submissions.
 
 **Empty state:** “No poster yet” with requirements and an optional skip.
 
 **Error state:** Clear file-type/size/dimension errors; retry; do not expose
-storage credentials or raw provider errors.
+storage paths, credentials, or raw provider errors.
 
-**Permissions:** Club manager for the event; only draft/rejected events unless a
-future policy allows poster updates on published events. Students cannot upload.
+**Permissions:** Active owning-club president/officer for `DRAFT`, `REJECTED`,
+and `PUBLISHED` events. Locked for `PENDING_APPROVAL`, `CANCELLED`, and
+`COMPLETED`. Students and college administrators cannot upload.
 
 **Mobile layout:** Camera/gallery picker; preview full-width; alt-text field
 below; upload button sticky.
 
 ### 14. OCR review
+
+**Status:** Future work. Prompt 6 stores `ocrStatus = NOT_REQUESTED` and does not
+extract or map poster text.
 
 **Purpose:** Let a club administrator confirm text extracted from a poster before
 using it.
@@ -806,6 +823,7 @@ sheet.
 | Browse published events in own college | yes     | yes                       | yes                              | yes                       |
 | Register/cancel own registration       | yes     | if student profile exists | if student profile exists        | if student profile exists |
 | Create/edit own club draft             | no      | yes                       | no                               | policy-dependent          |
+| Upload/replace/remove event poster     | no      | yes, own active club      | no                               | no                        |
 | Submit event for review                | no      | yes, own active club      | policy-dependent                 | yes                       |
 | Approve/reject event                   | no      | no                        | yes, own college                 | yes                       |
 | Cancel/complete published event        | no      | yes, own active club      | yes, own college                 | yes                       |
@@ -816,7 +834,9 @@ sheet.
 | Resolve duplicate events               | no      | no                        | yes, own college                 | yes                       |
 
 These are product specifications. The authoritative implementation rules remain
-in the server services and the database constraints. Prompt 4 now supplies a
-trusted `AuthenticatedActor` from the verified session; future dashboards and
-routes must still enforce route-level permission checks before calling these
-services.
+in the server services and the database constraints. Prompt 4 supplies a trusted
+`AuthenticatedActor` from the verified session; Prompt 5 dashboard routes enforce
+role and tenant checks before calling these services. Prompt 6 adds poster
+management and authenticated delivery without changing the role model. See
+`docs/dashboards.md` for the implemented route map and `docs/event-operations.md`
+for the lifecycle, notification, and poster rules.

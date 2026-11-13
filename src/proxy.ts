@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 const isDevelopment = process.env.NODE_ENV === "development";
 
 /**
+ * Next.js renders its route announcer as a custom element with a fixed
+ * `style="position: absolute;"` attribute. A nonce cannot authorize style
+ * attributes, so production allows only this exact framework-owned style via
+ * an attribute hash instead of enabling `'unsafe-inline'` globally.
+ */
+const nextRouteAnnouncerStyleHash = "'sha256-aqNNdDLnnrDOnTNdkJpYlAxKVJtLt9CtFLklmInuUAE='";
+
+/**
  * Generates a per-request nonce and a nonce-based CSP.
  *
  * Nonce-based CSP requires dynamic rendering. The landing page opts into
@@ -15,6 +23,7 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' ${isDevelopment ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
+    ...(isDevelopment ? [] : [`style-src-attr 'unsafe-hashes' ${nextRouteAnnouncerStyleHash}`]),
     "img-src 'self' blob: data:",
     "font-src 'self'",
     `connect-src 'self'${isDevelopment ? " ws: wss:" : ""}`,
