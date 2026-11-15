@@ -5,10 +5,12 @@ administrator, college administrator, and platform administrator dashboard
 routes described here; see `docs/dashboards.md` for the actual route map and
 authorization model. Prompt 6 implements event poster upload, replacement, and
 removal with authenticated delivery; see `docs/poster-storage.md` and
-`docs/event-operations.md`. OCR, crop/focal-point editing, duplicate-detection
-algorithms, recommendations, email/push/SMS notification delivery, and QR
-check-in remain future work. The service-layer rules in `src/services` remain
-the backend contract.
+`docs/event-operations.md`. Prompt 7 implements local poster OCR review,
+deterministic recommendations, advisory duplicate review, and schedule-conflict
+warnings; see `docs/event-intelligence.md`. Crop/focal-point editing, semantic
+duplicate detection, email/push/SMS notification delivery, and QR check-in
+remain future work. The service-layer rules in `src/services` remain the backend
+contract.
 
 Common requirements for every screen:
 
@@ -383,21 +385,22 @@ bar; destructive actions in an overflow menu with confirmation.
 
 ### 13. Poster upload
 
-**Status:** Implemented in Prompt 6. Crop/focal-point editing and OCR remain
-future work.
+**Status:** Implemented in Prompt 6. Local OCR review is implemented in Prompt 7.
+Crop/focal-point editing remains future work.
 
 **Purpose:** Attach a safe, accessible poster to an event.
 
 **Main components:** File picker; JPEG/PNG/WebP requirements; preview; alt-text
 field; current-poster display; replace/remove actions; safe broken-image
-fallback. Crop/focal point and OCR status are future additions.
+fallback. Crop/focal point remains a future addition; OCR status is available
+on the separate OCR review surface.
 
 **Data required:** Event/club authorization; detected MIME type, byte size,
 dimensions, and alt text; a server-generated storage key that is never exposed
-to the browser; OCR status only when OCR is implemented.
+to the browser; OCR status and extracted fields for draft/rejected events.
 
 **User actions:** Choose file, preview, set alt text, upload, replace, remove.
-OCR requests remain future work.
+OCR is an explicit separate action that never blocks upload or manual editing.
 
 **Loading state:** Upload/replace pending state; prevent duplicate submissions.
 
@@ -415,8 +418,9 @@ below; upload button sticky.
 
 ### 14. OCR review
 
-**Status:** Future work. Prompt 6 stores `ocrStatus = NOT_REQUESTED` and does not
-extract or map poster text.
+**Status:** Implemented in Prompt 7 as an explicit local Tesseract.js action with
+per-field human review. It is available only for `DRAFT`/`REJECTED` events with
+a primary poster and never publishes, submits, or approves an event.
 
 **Purpose:** Let a club administrator confirm text extracted from a poster before
 using it.
@@ -438,8 +442,9 @@ save changes.
 **Error state:** OCR failure with retry and manual-entry fallback; never block
 event creation on OCR.
 
-**Permissions:** Club manager for the event; college admin may review if
-moderation policy allows. No automatic publishing from OCR.
+**Permissions:** Active owning-club president/officer for a draft or rejected
+event. College administrators can view the poster but cannot run OCR or apply
+suggestions. No automatic publishing from OCR.
 
 **Mobile layout:** Poster preview then extracted text; accept/reject actions
 sticky; long text uses a full-screen editor.
@@ -581,25 +586,29 @@ sticky action bar; rejection reason in a dialog.
 
 ### 20. Duplicate review
 
+**Status:** Implemented in Prompt 7 as an advisory, same-college review queue.
+It never merges, rejects, cancels, or deletes either event.
+
 **Purpose:** Resolve suspected duplicate events without deleting history.
 
 **Main components:** Candidate pair; side-by-side event comparison; confidence;
-club/date/venue signals; confirm duplicate; dismiss; notes; audit.
+title/date/venue/club signals; confirm duplicate; dismiss; audit history.
 
 **Data required:** EventDuplicate pair in the college; both events; confidence;
-reviewer; status; timestamps; audit history.
+reasons; reviewer; status; timestamps; audit history.
 
-**User actions:** Compare, confirm duplicate, dismiss, add review note, filter.
+**User actions:** Compare, confirm duplicate, dismiss.
 
-**Loading state:** Comparison skeleton; keep the queue count visible.
+**Loading state:** Server-rendered queue with pending submission state on the
+review action; keep the queue count visible.
 
 **Empty state:** “No duplicate candidates.”
 
 **Error state:** Conflict if another reviewer resolved it; refresh; do not
 auto-merge without an explicit action.
 
-**Permissions:** College admin in the same college or super admin. Club admins
-may see a duplicate warning but cannot resolve it.
+**Permissions:** College admin in the same college. Club admins and platform
+admins cannot resolve duplicate suggestions.
 
 **Mobile layout:** Stacked comparison cards with a sticky decision bar; allow
 horizontal comparison only as an enhancement.
@@ -768,7 +777,7 @@ a labelled menu with confirmation.
 **Purpose:** Manage platform-wide defaults and integrations safely.
 
 **Main components:** Platform identity; feature flags (future); email/SMTP
-status (future); OCR provider status (future); security settings; audit; save
+status (future); local OCR runtime status; security settings; audit; save
 confirmation.
 
 **Data required:** Platform configuration (non-secret values), integration

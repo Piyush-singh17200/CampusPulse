@@ -1,18 +1,20 @@
 # Event operations
 
-This document is the operational reference for Prompt 6 event lifecycle,
-poster management, notifications, audit, and registration interactions. It
-describes the behavior implemented in the repository; it is not a claim that
-every future operational feature exists.
+This document is the operational reference for the event lifecycle, poster
+management, notifications, audit, registration interactions, and the Prompt 7
+event-intelligence features. It describes the behavior implemented in the
+repository; it is not a claim that every future operational feature exists.
+See `docs/event-intelligence.md` for OCR, recommendation, duplicate-threshold,
+and schedule-conflict details.
 
 ## 1. Roles and ownership
 
-| Role            | Event operations                                                                      |
-| --------------- | ------------------------------------------------------------------------------------- |
-| `CLUB_ADMIN`    | Create, edit, submit, cancel, complete, and manage posters for an owned active club.  |
-| `COLLEGE_ADMIN` | Review, approve, reject, cancel, and complete events in the same college.             |
-| `SUPER_ADMIN`   | Review and transition existing events across colleges; view posters.                  |
-| `STUDENT`       | View published same-college events, register/cancel, save/unsave, read notifications. |
+| Role            | Event operations                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `CLUB_ADMIN`    | Create, edit, submit, cancel, complete, manage posters, and run OCR for owned active clubs.                  |
+| `COLLEGE_ADMIN` | Review events, approve/reject/cancel/complete, and review duplicate suggestions in the same college.         |
+| `SUPER_ADMIN`   | Review and transition existing events across colleges; view posters.                                         |
+| `STUDENT`       | View published same-college events, register/cancel, save/unsave, see recommendations and schedule warnings. |
 
 Every mutation accepts a trusted `AuthenticatedActor`; the browser never supplies
 its user ID, role, college, or club membership. Services reload authorization
@@ -43,6 +45,11 @@ Invalid transitions, stale concurrent transitions, cross-college IDs, and
 non-owner club managers are rejected. A transition writes its audit row and any
 notifications in the same database transaction as the status change.
 
+Submitting a draft to `PENDING_APPROVAL` also starts advisory duplicate
+detection after the transition commits. Detection failure is logged and never
+blocks the submission. Rejecting or cancelling an event clears its pending
+duplicate suggestions; confirmed/dismissed review history is preserved.
+
 There is intentionally no `CANCELLED -> PUBLISHED`, `COMPLETED -> PUBLISHED`, or
 `PENDING_APPROVAL -> DRAFT` shortcut. Those would hide history or bypass review.
 
@@ -59,6 +66,11 @@ There is intentionally no `CANCELLED -> PUBLISHED`, `COMPLETED -> PUBLISHED`, or
 - Event creation and poster upload are separate operations. If the draft is
   created but the poster upload fails, the draft remains and the browser is
   redirected to the edit page with a safe poster error.
+- Event forms can attach multiple existing categories and interests. These
+  replaceable links are validated against the same college.
+- Draft and rejected events with a primary poster can run local poster OCR. OCR
+  only suggests values; accepted fields go through the normal event update path.
+  OCR never submits, approves, publishes, or bypasses review.
 - Creating an event writes `EVENT_CREATED`; draft/rejected edits write
   `EVENT_UPDATED`.
 
@@ -120,18 +132,26 @@ not configured; no email is sent.
 
 ## 6. Audit actions
 
-| Action                        | Trigger                                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `EVENT_CREATED`               | Draft creation                                               |
-| `EVENT_UPDATED`               | Draft or rejected event edit                                 |
-| `EVENT_APPROVED`              | Transition to `PUBLISHED`                                    |
-| `EVENT_REJECTED`              | Transition to `REJECTED`                                     |
-| `EVENT_CANCELLED`             | Transition to `CANCELLED`                                    |
-| `EVENT_STATUS_CHANGED`        | Other lifecycle transitions                                  |
-| `POSTER_UPLOADED`             | First primary poster upload                                  |
-| `POSTER_REPLACED`             | Replacement of an existing primary poster                    |
-| `POSTER_REMOVED`              | Removal of an existing primary poster                        |
-| `REGISTRATION_STATUS_CHANGED` | Registration confirmation, cancellation, attendance, no-show |
+| Action                        | Trigger                                                          |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `EVENT_CREATED`               | Draft creation                                                   |
+| `EVENT_UPDATED`               | Draft or rejected event edit                                     |
+| `EVENT_APPROVED`              | Transition to `PUBLISHED`                                        |
+| `EVENT_REJECTED`              | Transition to `REJECTED`                                         |
+| `EVENT_CANCELLED`             | Transition to `CANCELLED`                                        |
+| `EVENT_STATUS_CHANGED`        | Other lifecycle transitions                                      |
+| `POSTER_UPLOADED`             | First primary poster upload                                      |
+| `POSTER_REPLACED`             | Replacement of an existing primary poster                        |
+| `POSTER_REMOVED`              | Removal of an existing primary poster                            |
+| `REGISTRATION_STATUS_CHANGED` | Registration confirmation, cancellation, attendance, no-show     |
+| `DUPLICATE_CONFIRMED`         | College administrator confirms an advisory duplicate suggestion  |
+| `DUPLICATE_DISMISSED`         | College administrator dismisses an advisory duplicate suggestion |
+
+OCR applies accepted fields through `EVENT_UPDATED` with
+`source: "poster_ocr_review"` and the accepted/applied field lists. Duplicate
+review metadata records both event IDs, confidence, reasons, the decision, and
+`automaticEventChange: false`. Registration audit metadata includes the
+revalidated schedule conflicts and `scheduleConflictCount`.
 
 Poster audit metadata includes the event, club, previous poster ID when
 replacing, detected MIME type, byte size, width, and height. Audit rows are
@@ -154,6 +174,11 @@ no application service to edit or delete audit rows.
 - Event cancellation cancels confirmed registrations and notifies those
   students. It does not delete registration history.
 - Event completion is terminal and does not cancel registrations.
+- Schedule conflicts use strict overlap (`A.start < B.end && B.start < A.end`).
+  Adjacent events do not conflict. Conflicts are revalidated inside the
+  registration transaction, recorded in audit metadata, returned to the UI, and
+  shown as advisory warnings. They do not block an otherwise valid
+  registration.
 
 ## 8. Access-control checks
 
@@ -173,17 +198,22 @@ Before publishing or changing a poster, verify:
 
 ### Before submission
 
-- Confirm title, summary, description, dates, registration window, venue, and
-  capacity.
+- Confirm title, summary, description, dates, registration window, venue,
+  capacity, categories, and interests.
 - Upload a JPEG, PNG, or WebP no larger than 5 MB.
 - Set meaningful alt text.
 - Confirm the preview and current-poster display.
+- Optionally run OCR, review every suggestion, edit accepted values, and save
+  only the fields you want. Confirm ambiguous dates/times were not silently
+  applied.
 - Save as draft and verify the event detail page.
 
 ### Review and publication
 
 - Submit for approval; confirm poster changes are locked.
 - As a college administrator, review the event and poster.
+- Review any duplicate suggestions. Confirm or dismiss them; neither action
+  merges, rejects, cancels, or deletes an event.
 - Approve or reject with a clear reason.
 - Confirm the club manager receives the in-app notification.
 - Confirm a same-college student can see a published poster.
@@ -193,6 +223,8 @@ Before publishing or changing a poster, verify:
 
 - Register a student and confirm the in-app confirmation notification.
 - Confirm the club registration list shows the student as confirmed.
+- Confirm overlapping registrations show an advisory schedule warning and that
+  adjacent events do not.
 - Cancel the registration and confirm the cancellation notification.
 - Verify capacity and deadline enforcement with a controlled test event.
 
@@ -218,16 +250,27 @@ Before publishing or changing a poster, verify:
 Prompt 6 tests cover lifecycle integration, poster validation, replacement and
 removal, storage failure, access control, capacity/deadline enforcement,
 duplicate/concurrent registration, notification scoping, audit correctness, and
-cross-tenant authorization. The Playwright workflow covers create → preview →
-submit → approve → student view → register → club view → cancel → replace →
-access-control checks → remove → responsive screenshots.
+cross-tenant authorization. Prompt 7 adds service tests for deterministic OCR
+extraction, OCR processing/claim/apply/failure, recommendations, duplicate
+scoring/review, and schedule conflicts. The Prompt 6 Playwright workflow covers
+create → preview → submit → approve → student view → register → club view →
+cancel → replace → access-control checks → remove → responsive screenshots.
+The Prompt 7 Playwright workflow covers OCR review, recommendations, duplicate
+review, schedule warnings, and responsive layouts.
 
 Known limitations:
 
 - Notifications are in-app only; no email, push, SMS, or background delivery.
+- OCR supports bundled English raster text only and runs in the request process;
+  there is no durable queue or progress percentage.
+- Duplicate detection is lexical and advisory; it never auto-merges, auto-
+  rejects, or deletes events.
+- Schedule conflicts are advisory; there is no blocking override or travel-time
+  buffer.
+- Recommendations use explicit interests and prior registration categories, not
+  click behavior or external services.
 - No published-event field editing, so no “event changed” notification beyond
   cancellation.
-- No OCR, duplicate detection, recommendations, or scheduling intelligence.
 - No PostgreSQL RLS; tenant isolation is application-layer plus composite keys.
 - The local poster adapter is single-instance development storage. See
   `docs/poster-storage.md` for production caveats.

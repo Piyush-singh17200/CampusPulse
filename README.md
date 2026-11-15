@@ -10,9 +10,11 @@ Prompt 5 is implemented through four role-specific dashboards backed by real
 PostgreSQL data. Prompt 6 adds event operations: poster upload/replacement/
 removal with a server-only local storage adapter, authenticated poster delivery,
 transactional in-app notifications for moderation and registration events, and
-poster/lifecycle audit coverage. Public business APIs, OCR, duplicate-detection
-algorithms, recommendations, email notification delivery, production object
-storage, deployment, and PostgreSQL RLS remain future work.
+poster/lifecycle audit coverage. Prompt 7 adds local Tesseract.js poster OCR with
+human review, deterministic student recommendations, advisory same-college
+duplicate review, and advisory schedule-conflict warnings with server-side
+revalidation. Public business APIs, email notification delivery, production
+object storage, deployment, and PostgreSQL RLS remain future work.
 
 The project is published at
 <https://github.com/Piyush-singh17200/CampusPulse>.
@@ -24,11 +26,12 @@ Implemented and verified in this phase:
 - Responsive, accessible CampusPulse landing page with all 11 required sections.
 - Next.js 16 App Router, strict TypeScript, ESLint, Prettier, and production build.
 - PostgreSQL 17 Docker service on host port `5434`.
-- Prisma schema with 23 models, enums, composite tenant foreign keys, indexes,
+- Prisma schema with 25 models, enums, composite tenant foreign keys, indexes,
   timestamps, and deliberate deletion behavior.
-- Five applied migrations: the initial schema, the event audit enum extension,
+- Six applied migrations: the initial schema, the event audit enum extension,
   the additive auth/session/RBAC migration, the additive dashboard
-  saved-event/audit migration, and the Prompt 6 poster audit enum migration.
+  saved-event/audit migration, the Prompt 6 poster audit enum migration, and the
+  Prompt 7 event-intelligence migration.
 - Central database configuration, pooling, hot-reload singleton, health check,
   test-database guards, tenant helpers, domain errors, transaction retries, and
   audit redaction.
@@ -65,22 +68,35 @@ Implemented and verified in this phase:
   `POSTER_REPLACED`, `POSTER_REMOVED`) alongside the existing event and
   registration audit trail.
 - CLI-only super-admin bootstrap with no public endpoint and no default password.
-- Isolated Vitest integration suite against `campuspulse_test` with 168 passing
-  tests, including poster validation/storage/access/cleanup, notification
-  scoping, concurrency, tenant, lifecycle, auth, session, reset, rate-limit,
-  CSRF, RBAC, dashboard authorization, filtering, pagination, audit, and security
-  tests.
+- Local, explicit poster OCR using bundled Tesseract.js English traineddata,
+  with server-only processing, duplicate-request claims, safe failure state, and
+  per-field human review before values reach the normal event update path.
+- Deterministic student recommendations from explicit interests, category
+  affinity, timing, and popularity, with honest explanations and empty/error
+  fallbacks.
+- Advisory same-college duplicate detection with stored confidence/reasons and
+  confirm/dismiss review. Review never merges, rejects, cancels, or deletes an
+  event.
+- Advisory schedule-conflict warnings using strict interval overlap, including
+  server-side revalidation and audit metadata during registration.
+- Isolated Vitest integration suite against `campuspulse_test` with 189 passing
+  tests, including OCR, recommendations, duplicate review, schedule conflicts,
+  poster validation/storage/access/cleanup, notification scoping, concurrency,
+  tenant, lifecycle, auth, session, reset, rate-limit, CSRF, RBAC, dashboard
+  authorization, filtering, pagination, audit, and security tests.
 - Playwright workflow coverage for create → preview → submit → approve → student
   view → register → club registration list → cancel → replace poster →
-  access-control checks → remove → responsive screenshots.
+  access-control checks → remove → responsive screenshots, plus Prompt 7 OCR,
+  recommendations, duplicate review, and conflict warnings.
 - Idempotent, fictional, development-only seed.
 - Design-system, database, authentication, dashboard, event-operations,
-  poster-storage, security, and future-screen docs.
+  event-intelligence, poster-storage, security, and future-screen docs.
 
 Intentionally deferred:
 
 - Public business APIs and any unauthenticated business endpoint.
-- OCR, duplicate-detection algorithms, recommendations, and QR check-in.
+- QR check-in, semantic duplicate detection, and external recommendation or LLM
+  services.
 - Email/push/SMS notification delivery and production SMTP configuration.
   Notifications are in-app only.
 - Production object storage, a shared multi-instance poster volume, CDN
@@ -319,7 +335,8 @@ development server. Do not run it against a stale production `next start`
 process. The workflow uses the seeded demo accounts and creates a new test event
 in the **development** database; it does not reset or truncate the database.
 Clear `rate_limit_entries` or wait for the login window if repeated runs hit
-“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`.
+“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`
+and `docs/screenshots/prompt-7/`.
 
 ## Development and production commands
 
@@ -342,7 +359,7 @@ migrations or the seed automatically. A production deployment must run
 
 ```text
 prisma/
-  schema.prisma                 23-model multi-tenant + auth schema
+  schema.prisma                 25-model multi-tenant + auth schema
   migrations/                   applied SQL migrations
   seed.ts                       guarded fictional development seed
 scripts/
@@ -365,6 +382,7 @@ src/
   server/db/                    client, config, tenant, audit, notifications
   server/email/                 optional SMTP delivery
   server/posters/               content-based poster validation
+  server/ocr/                   deterministic extraction + local Tesseract engine
   server/storage/               server-only poster storage interface + local adapter
   server/errors.ts              domain error types
   services/                     event, registration, poster, notification, club, user domains
@@ -384,6 +402,7 @@ docs/
   database.md                   ER diagram, tenancy, lifecycle, concurrency
   design-system.md              tokens, components, states, accessibility
   event-operations.md           lifecycle, poster rules, notifications, audit
+  event-intelligence.md         OCR, recommendations, duplicates, conflicts
   future-screens.md             screen specifications and implemented status
   poster-storage.md             poster storage, validation, delivery, caveats
   security-review.md            security review with Prompt 6 addendum
@@ -451,6 +470,15 @@ college.
 - `src/services/posters.ts`: content-validated poster upload/replacement/
   removal, status and manager authorization, access-controlled delivery,
   audit, and post-commit file cleanup.
+- `src/services/poster-ocr.ts`: explicit OCR processing claims, field review,
+  accepted-value application through the event update path, safe failures, and
+  audit.
+- `src/services/recommendations.ts`: deterministic, explainable, tenant-scoped
+  student recommendations from real interest/category/timing/popularity signals.
+- `src/services/duplicate-events.ts`: lexical same-day duplicate scoring,
+  advisory persistence, and college-scoped confirm/dismiss review.
+- `src/services/schedule-conflicts.ts`: strict interval-overlap detection,
+  pre-registration lookup, and registration-time revalidation.
 - `src/services/notification-recipients.ts`: active club-manager and confirmed
   registrant recipient lookup inside the business transaction.
 - `src/services/attendance.ts`: post-start attended/no-show transitions.
@@ -459,9 +487,10 @@ college.
 - `src/services/validation.ts`: Zod input validation, date ordering, slugging.
 
 Poster storage is server-only under `src/server/storage/`; image validation is
-under `src/server/posters/`; notification inserts are in
-`src/server/db/notifications.ts`. See `docs/poster-storage.md` and
-`docs/event-operations.md`.
+under `src/server/posters/`; OCR extraction and the local Tesseract engine are
+under `src/server/ocr/`; notification inserts are in
+`src/server/db/notifications.ts`. See `docs/poster-storage.md`,
+`docs/event-operations.md`, and `docs/event-intelligence.md`.
 
 Services accept a trusted `AuthenticatedActor` first argument. They reload the
 actor's role/college/membership state from PostgreSQL before acting. They are not
@@ -514,6 +543,12 @@ Published posters are visible to authenticated same-college users; unpublished
 posters are limited to the owning club manager, same-college college
 administrators, and platform administrators.
 
+Submitting a draft starts advisory duplicate detection after the transition
+commits. College administrators can confirm or dismiss suggestions, but review
+never changes either event automatically. Draft/rejected events with a primary
+poster can also run local OCR; accepted values go through the normal event update
+path and OCR never submits or publishes an event.
+
 See `docs/database.md` for the full authorization matrix and the justification
 for the additional `PENDING_APPROVAL -> CANCELLED` and
 `PUBLISHED -> COMPLETED` transitions. See `docs/event-operations.md` for the
@@ -530,8 +565,10 @@ Registration is protected at the database level, not by a frontend check:
    and deadline.
 4. Active registrations (`CONFIRMED` + `ATTENDED`) are counted while the event
    row is locked.
-5. The registration is inserted or reactivated.
-6. The confirmation notification and audit record are written in the same
+5. Schedule conflicts are revalidated with strict interval overlap and recorded
+   in audit metadata as advisory warnings.
+6. The registration is inserted or reactivated.
+7. The confirmation notification and audit record are written in the same
    transaction.
 
 `@@unique([eventId, studentProfileId])` prevents duplicate rows. Prisma `P2002`
@@ -726,6 +763,15 @@ student, register, confirm the registration notification, cancel, replace the
 poster, verify the old URL returns `404`, verify cross-college and unauthenticated
 access is denied, then remove the poster and confirm the empty state.
 
+For Prompt 7, create a draft with a readable poster, run OCR, review and accept
+only selected fields, and confirm the event remains a draft. Submit two similar
+same-day events and confirm a college administrator sees an advisory duplicate
+suggestion that can be confirmed or dismissed without changing either event.
+Register a student for overlapping events and confirm the advisory warning, then
+verify adjacent events do not warn. Check the student overview recommendations
+and their explanations. Repeat the event, recommendation, duplicate, and warning
+views at 360, 390, 768, 1024, 1280, and 1440 pixel widths.
+
 Check the mobile drawer, keyboard focus, fonts, browser console, session
 persistence, logout, generic auth errors, filters, pagination, empty states, and
 cross-role redirects. Verify dashboard and event-detail layouts at 360, 390, 768,
@@ -738,6 +784,7 @@ rebuilding.
 - [Dashboard routes, authorization, Server Actions, saved events](docs/dashboards.md)
 - [Database architecture, ER diagram, tenancy, lifecycle, concurrency](docs/database.md)
 - [Event lifecycle, poster rules, notifications, audit](docs/event-operations.md)
+- [OCR, recommendations, duplicate review, schedule conflicts](docs/event-intelligence.md)
 - [Poster storage, validation, delivery, production caveats](docs/poster-storage.md)
 - [Design system](docs/design-system.md)
 - [Future screen specifications](docs/future-screens.md)
@@ -745,13 +792,12 @@ rebuilding.
 
 ## Scope boundary
 
-Prompt 6 stops after verified event operations: the existing lifecycle,
-registration, and dashboard behavior; poster upload/replacement/removal and
-authenticated delivery; transactional in-app notifications; and poster/lifecycle
-audit coverage. OCR, duplicate-detection algorithms, recommendations, production
-email/push/SMS notification delivery, production object storage, public business
-APIs, production deployment, paid services, and external account changes remain
-future work. The source is published to GitHub, but PostgreSQL RLS, production
+Prompt 7 stops after verified event intelligence: local poster OCR with human
+review, deterministic recommendations, advisory duplicate review, and advisory
+schedule-conflict warnings. Production email/push/SMS notification delivery,
+production object storage, public business APIs, production deployment, paid
+services, and external account changes remain future work. The source is
+published to GitHub, but PostgreSQL RLS, production
 SMTP, shared poster storage, and deployment hardening remain future work. Do not
 expose the services as public business APIs until route-level authorization and
 production hardening are reviewed for that phase.

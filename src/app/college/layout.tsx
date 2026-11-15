@@ -16,6 +16,7 @@ const navItems: DashboardNavItem[] = [
   { href: "/college/approvals", label: "Approvals", icon: "attendance" },
   { href: "/college/clubs", label: "Clubs", icon: "clubs" },
   { href: "/college/users", label: "Users", icon: "users" },
+  { href: "/college/feedback", label: "Feedback", icon: "feedback" },
   { href: "/college/analytics", label: "Analytics", icon: "analytics" },
   { href: "/college/audit-logs", label: "Audit logs", icon: "audit" },
   { href: "/college/settings", label: "Settings", icon: "settings" },

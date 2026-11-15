@@ -82,12 +82,49 @@ enum PosterOcrStatus {
   FAILED
 }
 
+enum PosterOcrFieldName {
+  TITLE
+  SUMMARY
+  DESCRIPTION
+  START_DATE
+  START_TIME
+  END_DATE
+  END_TIME
+  REGISTRATION_DEADLINE_DATE
+  REGISTRATION_DEADLINE_TIME
+  VENUE
+  VENUE_ADDRESS
+  ORGANIZER
+  CONTACT
+  CATEGORY
+}
+
+enum PosterOcrExtractionStatus {
+  EXTRACTED
+  AMBIGUOUS
+  MISSING
+  INVALID
+}
+
+enum PosterOcrReviewStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 enum NotificationType {
   SYSTEM
   EVENT_REMINDER
   REGISTRATION_UPDATE
+  ATTENDANCE_UPDATE
+  FEEDBACK_UPDATE
   MODERATION_UPDATE
   CLUB_UPDATE
+}
+
+enum FeedbackModerationStatus {
+  VISIBLE
+  HIDDEN
 }
 
 enum DuplicateStatus {
@@ -118,7 +155,14 @@ enum AuditAction {
   DUPLICATE_DISMISSED
   REGISTRATION_STATUS_CHANGED
   SAVED_EVENT_CHANGED
+  ATTENDANCE_RECORDED
+  ATTENDANCE_CORRECTED
+  ATTENDANCE_CREDENTIAL_ISSUED
+  FEEDBACK_SUBMITTED
+  FEEDBACK_UPDATED
+  FEEDBACK_MODERATED
   NOTIFICATION_READ
+  NOTIFICATION_PREFERENCES_UPDATED
 }
 
 // Authentication events include anonymous attempts (for example, a login
@@ -149,15 +193,16 @@ model College {
   updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
   deletedAt     DateTime?     @db.Timestamptz(3)
 
-  users           User[]
-  studentProfiles StudentProfile[]
-  clubs           Club[]
-  clubMemberships ClubMembership[]
-  categories      Category[]
-  events          Event[]
-  savedEvents     SavedEvent[]
-  auditLogs       AuditLog[]
-  authAuditEvents AuthAuditEvent[]
+  users                 User[]
+  studentProfiles       StudentProfile[]
+  clubs                 Club[]
+  clubMemberships       ClubMembership[]
+  categories            Category[]
+  events                Event[]
+  savedEvents           SavedEvent[]
+  attendanceCredentials AttendanceCredential[]
+  auditLogs             AuditLog[]
+  authAuditEvents       AuthAuditEvent[]
 
   @@index([status])
   @@index([createdAt])
@@ -178,18 +223,20 @@ model User {
   updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
   deletedAt     DateTime?  @db.Timestamptz(3)
 
-  college             College?             @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  studentProfile      StudentProfile?
-  clubMemberships     ClubMembership[]
-  createdClubs        Club[]               @relation("ClubCreator")
-  createdEvents       Event[]              @relation("EventCreator")
-  notifications       Notification[]
-  auditLogs           AuditLog[]           @relation("AuditActor")
-  duplicateReviews    EventDuplicate[]     @relation("DuplicateReviewer")
-  sessions            Session[]
-  accounts            Account[]
-  passwordResetTokens PasswordResetToken[]
-  authAuditEvents     AuthAuditEvent[]     @relation("AuthAuditUser")
+  college                College?                @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  studentProfile         StudentProfile?
+  clubMemberships        ClubMembership[]
+  createdClubs           Club[]                  @relation("ClubCreator")
+  createdEvents          Event[]                 @relation("EventCreator")
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  moderatedFeedback      EventFeedback[]         @relation("FeedbackModerator")
+  auditLogs              AuditLog[]              @relation("AuditActor")
+  duplicateReviews       EventDuplicate[]        @relation("DuplicateReviewer")
+  sessions               Session[]
+  accounts               Account[]
+  passwordResetTokens    PasswordResetToken[]
+  authAuditEvents        AuthAuditEvent[]        @relation("AuthAuditUser")
 
   @@unique([id, collegeId])
   @@index([collegeId, role, status])
@@ -282,6 +329,7 @@ model Interest {
   updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 
   studentInterests StudentInterest[]
+  eventInterests   EventInterest[]
 
   @@index([isActive, sortOrder])
   @@map("interests")
@@ -370,16 +418,18 @@ model Event {
   updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
   deletedAt            DateTime?   @db.Timestamptz(3)
 
-  college               College             @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  club                  Club                @relation(fields: [clubId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
-  createdBy             User                @relation("EventCreator", fields: [createdById, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  college               College                @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  club                  Club                   @relation(fields: [clubId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  createdBy             User                   @relation("EventCreator", fields: [createdById, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
   categories            EventCategory[]
+  interests             EventInterest[]
   registrations         EventRegistration[]
+  attendanceCredentials AttendanceCredential[]
   savedByStudents       SavedEvent[]
   posters               EventPoster[]
   feedback              EventFeedback[]
-  duplicatesAsPrimary   EventDuplicate[]    @relation("DuplicatePrimary")
-  duplicatesAsCandidate EventDuplicate[]    @relation("DuplicateCandidate")
+  duplicatesAsPrimary   EventDuplicate[]       @relation("DuplicatePrimary")
+  duplicatesAsCandidate EventDuplicate[]       @relation("DuplicateCandidate")
 
   @@unique([collegeId, slug])
   @@unique([id, collegeId])
@@ -406,6 +456,24 @@ model EventCategory {
   @@map("event_categories")
 }
 
+// Explicit event-to-interest links keep recommendations explainable. A student
+// interest match is only claimed when the organizer actually tagged the event.
+model EventInterest {
+  id         String   @id @default(uuid()) @db.Uuid
+  collegeId  String   @db.Uuid
+  eventId    String   @db.Uuid
+  interestId String   @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  event    Event    @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  interest Interest @relation(fields: [interestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([eventId, interestId])
+  @@index([collegeId, interestId])
+  @@index([eventId])
+  @@map("event_interests")
+}
+
 model EventRegistration {
   id               String             @id @default(uuid()) @db.Uuid
   collegeId        String             @db.Uuid
@@ -418,55 +486,120 @@ model EventRegistration {
   createdAt        DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
 
-  event          Event          @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
-  studentProfile StudentProfile @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  event                Event                 @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  studentProfile       StudentProfile        @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  attendanceCredential AttendanceCredential?
 
   @@unique([eventId, studentProfileId])
+  @@unique([id, collegeId])
   @@index([collegeId, eventId, status])
   @@index([collegeId, studentProfileId, registeredAt])
   @@index([eventId, status])
   @@map("event_registrations")
 }
 
+// A single, rotatable attendance credential per registration. Only a SHA-256
+// hash of the bearer token is stored. The raw token is rendered once to the
+// authenticated student and is never persisted, logged, or written to audit
+// metadata.
+model AttendanceCredential {
+  id             String    @id @default(uuid()) @db.Uuid
+  collegeId      String    @db.Uuid
+  eventId        String    @db.Uuid
+  registrationId String    @db.Uuid
+  tokenHash      String    @unique @db.VarChar(64)
+  expiresAt      DateTime  @db.Timestamptz(3)
+  usedAt         DateTime? @db.Timestamptz(3)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  college      College           @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  event        Event             @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  registration EventRegistration @relation(fields: [registrationId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([registrationId])
+  @@unique([registrationId, collegeId])
+  @@index([collegeId, eventId])
+  @@index([expiresAt])
+  @@map("attendance_credentials")
+}
+
 model EventPoster {
-  id            String          @id @default(uuid()) @db.Uuid
-  collegeId     String          @db.Uuid
-  eventId       String          @db.Uuid
-  storageKey    String          @db.VarChar(512)
-  mimeType      String          @db.VarChar(100)
-  byteSize      Int
-  width         Int?
-  height        Int?
-  altText       String?         @db.VarChar(300)
-  ocrText       String?         @db.Text
-  ocrStatus     PosterOcrStatus @default(NOT_REQUESTED)
-  ocrReviewedAt DateTime?       @db.Timestamptz(3)
-  isPrimary     Boolean         @default(false)
-  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+  id             String          @id @default(uuid()) @db.Uuid
+  collegeId      String          @db.Uuid
+  eventId        String          @db.Uuid
+  storageKey     String          @db.VarChar(512)
+  mimeType       String          @db.VarChar(100)
+  byteSize       Int
+  width          Int?
+  height         Int?
+  altText        String?         @db.VarChar(300)
+  ocrText        String?         @db.Text
+  ocrStatus      PosterOcrStatus @default(NOT_REQUESTED)
+  ocrError       String?         @db.VarChar(500)
+  ocrStartedAt   DateTime?       @db.Timestamptz(3)
+  ocrCompletedAt DateTime?       @db.Timestamptz(3)
+  ocrReviewedAt  DateTime?       @db.Timestamptz(3)
+  isPrimary      Boolean         @default(false)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
 
-  event Event @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  event     Event            @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+  ocrFields PosterOcrField[]
 
+  @@unique([id, collegeId])
   @@index([eventId, isPrimary])
   @@index([collegeId, ocrStatus])
   @@map("event_posters")
 }
 
+// OCR suggestions are stored separately from the event so a failed or partial
+// extraction never changes publishable event content on its own.
+model PosterOcrField {
+  id               String                    @id @default(uuid()) @db.Uuid
+  collegeId        String                    @db.Uuid
+  posterId         String                    @db.Uuid
+  field            PosterOcrFieldName
+  value            String?                   @db.Text
+  confidence       Float?
+  evidence         String?                   @db.Text
+  extractionStatus PosterOcrExtractionStatus
+  reviewStatus     PosterOcrReviewStatus     @default(PENDING)
+  requiresReview   Boolean                   @default(true)
+  reviewedValue    String?                   @db.Text
+  reviewedAt       DateTime?                 @db.Timestamptz(3)
+  createdAt        DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                  @updatedAt @db.Timestamptz(3)
+
+  poster EventPoster @relation(fields: [posterId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([posterId, field])
+  @@index([collegeId, posterId])
+  @@map("poster_ocr_fields")
+}
+
 model EventFeedback {
-  id               String   @id @default(uuid()) @db.Uuid
-  collegeId        String   @db.Uuid
-  eventId          String   @db.Uuid
-  studentProfileId String   @db.Uuid
+  id               String                   @id @default(uuid()) @db.Uuid
+  collegeId        String                   @db.Uuid
+  eventId          String                   @db.Uuid
+  studentProfileId String                   @db.Uuid
   rating           Int
-  comment          String?  @db.Text
-  createdAt        DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  comment          String?                  @db.Text
+  moderationStatus FeedbackModerationStatus @default(VISIBLE)
+  moderatedById    String?                  @db.Uuid
+  moderatedAt      DateTime?                @db.Timestamptz(3)
+  moderationReason String?                  @db.VarChar(500)
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @db.Timestamptz(3)
 
   event          Event          @relation(fields: [eventId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
   studentProfile StudentProfile @relation(fields: [studentProfileId, collegeId], references: [id, collegeId], onDelete: Restrict, onUpdate: Cascade)
+  moderatedBy    User?          @relation("FeedbackModerator", fields: [moderatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([eventId, studentProfileId])
   @@index([collegeId, eventId, rating])
+  @@index([collegeId, moderationStatus])
   @@map("event_feedback")
 }
 
@@ -484,8 +617,29 @@ model Notification {
   user User @relation(fields: [userId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([collegeId, userId, readAt])
+  @@index([collegeId, userId, type, createdAt])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// Optional in-app categories only. There are deliberately no email, SMS, or
+// push-channel preferences because those delivery mechanisms are not part of
+// CampusPulse.
+model NotificationPreference {
+  id                  String   @id @default(uuid()) @db.Uuid
+  collegeId           String   @db.Uuid
+  userId              String   @unique @db.Uuid
+  registrationUpdates Boolean  @default(true)
+  attendanceUpdates   Boolean  @default(true)
+  feedbackUpdates     Boolean  @default(true)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId, collegeId], references: [id, collegeId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, collegeId])
+  @@index([collegeId, userId])
+  @@map("notification_preferences")
 }
 
 model EventDuplicate {
@@ -495,6 +649,7 @@ model EventDuplicate {
   candidateEventId String          @db.Uuid
   status           DuplicateStatus @default(PENDING)
   confidence       Decimal         @db.Decimal(5, 4)
+  reasons          String[]        @default([])
   reviewedById     String?         @db.Uuid
   reviewedAt       DateTime?       @db.Timestamptz(3)
   createdAt        DateTime        @default(now()) @db.Timestamptz(3)
@@ -506,6 +661,7 @@ model EventDuplicate {
 
   @@unique([primaryEventId, candidateEventId])
   @@index([collegeId, status])
+  @@index([primaryEventId, status])
   @@index([candidateEventId])
   @@map("event_duplicates")
 }

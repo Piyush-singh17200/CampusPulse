@@ -7,14 +7,18 @@ import { DashboardPageHeader, SectionCard } from "@/components/dashboard/primiti
 import { buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/states";
 import {
+  applyPosterOcrAction,
   removePosterAction,
+  runPosterOcrAction,
   updateEventAction,
   uploadPosterAction,
 } from "@/features/dashboards/actions";
 import { EventForm } from "@/features/dashboards/components/event-form";
 import { PosterManager } from "@/features/dashboards/components/poster-manager";
+import { PosterOcrPanel } from "@/features/dashboards/components/poster-ocr-panel";
 import { requireDashboardRole } from "@/server/auth/page-guard";
-import { getClubEvent } from "@/server/dashboards/queries";
+import { getClubEvent, getClubEventFormOptions } from "@/server/dashboards/queries";
+import { getPosterOcrReviewForEvent } from "@/services/poster-ocr";
 
 export const metadata: Metadata = {
   title: "Edit event",
@@ -40,7 +44,13 @@ export default async function ClubEditEventPage({
     notFound();
   }
 
+  const options = await getClubEventFormOptions(user);
+
   const editable = data.event.status === "DRAFT" || data.event.status === "REJECTED";
+  const ocrReview =
+    editable && data.event.posters.length
+      ? await getPosterOcrReviewForEvent(user, data.event.id)
+      : null;
   const canManagePoster =
     data.event.status === "DRAFT" ||
     data.event.status === "REJECTED" ||
@@ -102,6 +112,22 @@ export default async function ClubEditEventPage({
         </SectionCard>
       )}
 
+      {editable && ocrReview ? (
+        <SectionCard
+          title="Poster details (OCR)"
+          description="Extract text locally with Tesseract, review each field, and apply only what you accept. OCR does not submit or publish the event."
+        >
+          <PosterOcrPanel
+            key={`${ocrReview.poster.id}-${ocrReview.poster.reviewedAt?.toISOString() ?? ocrReview.poster.status}`}
+            eventId={data.event.id}
+            review={ocrReview}
+            categories={options.categories}
+            runAction={runPosterOcrAction}
+            applyAction={applyPosterOcrAction}
+          />
+        </SectionCard>
+      ) : null}
+
       {editable ? (
         <SectionCard
           title="Event details"
@@ -111,6 +137,8 @@ export default async function ClubEditEventPage({
             mode="edit"
             clubId={data.club?.id ?? ""}
             event={data.event}
+            categories={options.categories}
+            interests={options.interests}
             action={updateEventAction}
           />
         </SectionCard>

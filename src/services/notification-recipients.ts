@@ -48,3 +48,16 @@ export async function getConfirmedRegistrationUserIds(
 
   return [...new Set(registrations.map((registration) => registration.studentProfile.userId))];
 }
+
+export async function getAttendedRegistrationUserIds(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  collegeId: string,
+): Promise<string[]> {
+  const registrations = await tx.eventRegistration.findMany({
+    where: { eventId, collegeId, status: "ATTENDED" },
+    select: { studentProfile: { select: { userId: true } } },
+  });
+
+  return [...new Set(registrations.map((registration) => registration.studentProfile.userId))];
+}

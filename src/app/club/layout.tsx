@@ -16,6 +16,7 @@ const navItems: DashboardNavItem[] = [
   { href: "/club/events/create", label: "Create event", icon: "create" },
   { href: "/club/registrations", label: "Registrations", icon: "ticket" },
   { href: "/club/attendance", label: "Attendance", icon: "attendance" },
+  { href: "/club/feedback", label: "Feedback", icon: "feedback" },
   { href: "/club/analytics", label: "Analytics", icon: "analytics" },
   { href: "/club/settings", label: "Club settings", icon: "settings" },
 ];

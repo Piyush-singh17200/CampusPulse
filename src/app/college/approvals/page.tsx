@@ -3,8 +3,10 @@ import Link from "next/link";
 
 import { DashboardPageHeader, MetricCard, SectionCard } from "@/components/dashboard/primitives";
 import { StatusBadge } from "@/components/dashboard/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/states";
 import { ActionForm, ReasonActionForm } from "@/features/dashboards/components/action-form";
+import { DuplicateReviewCard } from "@/features/dashboards/components/duplicate-review";
 import { decideClubAction, transitionEventAction } from "@/features/dashboards/actions";
 import { formatDateTime, titleCase } from "@/lib/format";
 import { requireDashboardRole } from "@/server/auth/page-guard";
@@ -27,7 +29,7 @@ export default async function CollegeApprovalsPage() {
         description="Review event submissions and new club applications. Rejections require a reason and every decision is audited."
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Event approvals"
           value={data.pendingEvents.length}
@@ -40,6 +42,12 @@ export default async function CollegeApprovalsPage() {
           detail="Waiting for a decision"
         />
         <MetricCard
+          label="Duplicate suggestions"
+          value={data.pendingDuplicates.length}
+          detail="Advisory only"
+          tone="ink"
+        />
+        <MetricCard
           label="Recent decisions"
           value={data.recentlyDecided.length}
           detail="Latest audit entries"
@@ -48,6 +56,25 @@ export default async function CollegeApprovalsPage() {
       </div>
 
       <div className="space-y-6">
+        <SectionCard
+          title="Duplicate suggestions"
+          description="Deterministic matches from titles, dates, venues, and club ownership. These never change an event automatically."
+          bodyClassName="p-4 sm:p-5"
+        >
+          {data.pendingDuplicates.length ? (
+            <div className="space-y-4">
+              {data.pendingDuplicates.map((duplicate) => (
+                <DuplicateReviewCard key={duplicate.id} duplicate={duplicate} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No duplicate suggestions"
+              description="New submissions are compared with existing events in your college. Potential matches will appear here for review."
+            />
+          )}
+        </SectionCard>
+
         <SectionCard
           title="Pending events"
           description="Approve to publish immediately or reject with a clear reason."
@@ -66,6 +93,16 @@ export default async function CollegeApprovalsPage() {
                       <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
                         {event.club.name}
                       </span>
+                      {event._count.duplicatesAsPrimary + event._count.duplicatesAsCandidate > 0 ? (
+                        <Badge variant="signal">
+                          {event._count.duplicatesAsPrimary + event._count.duplicatesAsCandidate}{" "}
+                          duplicate flag
+                          {event._count.duplicatesAsPrimary + event._count.duplicatesAsCandidate ===
+                          1
+                            ? ""
+                            : "s"}
+                        </Badge>
+                      ) : null}
                     </div>
                     <Link
                       href={`/college/events/${event.id}`}

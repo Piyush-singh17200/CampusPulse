@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
-import type { EventStatus, RegistrationStatus } from "@/generated/prisma/enums";
+import type { EventStatus, NotificationType, RegistrationStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedActor } from "@/server/auth/types";
 import {
@@ -12,73 +12,25 @@ import {
   managedClubIds,
 } from "@/server/dashboards/access";
 import { TenantIsolationError } from "@/server/errors";
+import { getStudentRecommendations, type EventRecommendation } from "@/services/recommendations";
+import {
+  detectScheduleConflicts,
+  getScheduleConflictsForEvent,
+  type ScheduleConflict,
+} from "@/services/schedule-conflicts";
+import {
+  getDuplicateReviewsForEvent,
+  getPendingDuplicateReviewsForCollege,
+  type DuplicateReview,
+} from "@/services/duplicate-events";
 
-const eventListSelect = {
-  id: true,
-  collegeId: true,
-  clubId: true,
-  title: true,
-  slug: true,
-  summary: true,
-  status: true,
-  startsAt: true,
-  endsAt: true,
-  registrationOpensAt: true,
-  registrationDeadline: true,
-  venueName: true,
-  venueAddress: true,
-  isOnline: true,
-  onlineUrl: true,
-  capacity: true,
-  publishedAt: true,
-  rejectedAt: true,
-  rejectionReason: true,
-  cancelledAt: true,
-  cancellationReason: true,
-  completedAt: true,
-  createdAt: true,
-  updatedAt: true,
-  club: {
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      status: true,
-    },
-  },
-  categories: {
-    select: {
-      category: {
-        select: { id: true, name: true, slug: true },
-      },
-    },
-  },
-  posters: {
-    where: { isPrimary: true },
-    select: { id: true, mimeType: true, altText: true, width: true, height: true },
-    take: 1,
-  },
-  _count: {
-    select: { registrations: true },
-  },
-} satisfies Prisma.EventSelect;
+import {
+  eventDetailSelect,
+  eventListSelect,
+  type DashboardEvent,
+} from "@/server/dashboards/event-select";
 
-const eventDetailSelect = {
-  ...eventListSelect,
-  description: true,
-  club: {
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      status: true,
-      description: true,
-    },
-  },
-} satisfies Prisma.EventSelect;
-
-export type DashboardEvent = Prisma.EventGetPayload<{ select: typeof eventListSelect }>;
-export type DashboardEventDetail = Prisma.EventGetPayload<{ select: typeof eventDetailSelect }>;
+export type { DashboardEvent, DashboardEventDetail } from "@/server/dashboards/event-select";
 
 export type StudentProfileView = Prisma.StudentProfileGetPayload<{
   include: {
@@ -153,7 +105,9 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
       profile,
       college,
       upcoming: [] as { event: DashboardEvent; registrationId: string }[],
-      recommended: [] as DashboardEvent[],
+      recommendations: [] as EventRecommendation[],
+      recommendationReason:
+        "Complete your student profile and interests to get personalized recommendations.",
       recent: [] as DashboardEvent[],
       saved: [] as DashboardEvent[],
       counts: { registered: 0, upcoming: 0, attended: 0, cancelled: 0, saved: 0 },
@@ -240,46 +194,25 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
     }),
   ]);
 
-  const registeredEventIds = new Set(upcomingRows.map((row) => row.event.id));
-  const savedEventIds = new Set(savedRows.map((row) => row.event.id));
+  let recommendations: EventRecommendation[] = [];
+  let recommendationReason: string | null = null;
 
-  const registeredCategories = await prisma.eventCategory.findMany({
-    where: {
-      event: {
-        collegeId: college.id,
-        registrations: { some: { studentProfileId: profile.id } },
-      },
-    },
-    select: { categoryId: true },
-    distinct: ["categoryId"],
-  });
-
-  let recommended: DashboardEvent[] = [];
-
-  if (registeredCategories.length) {
-    recommended = await prisma.event.findMany({
-      where: {
-        collegeId: college.id,
-        status: "PUBLISHED",
-        deletedAt: null,
-        startsAt: { gte: now },
-        club: { status: "ACTIVE", deletedAt: null },
-        id: { notIn: [...registeredEventIds, ...savedEventIds] },
-        categories: {
-          some: { categoryId: { in: registeredCategories.map((item) => item.categoryId) } },
-        },
-      },
-      select: eventListSelect,
-      orderBy: { startsAt: "asc" },
-      take: 4,
-    });
+  try {
+    const result = await getStudentRecommendations(actor, { limit: 4 });
+    recommendations = result.recommendations;
+    recommendationReason = result.reason;
+  } catch (error) {
+    console.error("Could not load student recommendations", error);
+    recommendationReason =
+      "Recommendations are temporarily unavailable. You can still browse all events.";
   }
 
   return {
     profile,
     college,
     upcoming: upcomingRows.map((row) => ({ event: row.event, registrationId: row.id })),
-    recommended,
+    recommendations,
+    recommendationReason,
     recent,
     saved: savedRows.map((row) => row.event),
     counts: {
@@ -430,7 +363,7 @@ export async function getStudentEvent(actor: AuthenticatedActor, eventId: string
     return null;
   }
 
-  const [registration, saved, activeCount] = await Promise.all([
+  const [registration, saved, activeCount, conflicts] = await Promise.all([
     profile
       ? prisma.eventRegistration.findUnique({
           where: {
@@ -448,6 +381,7 @@ export async function getStudentEvent(actor: AuthenticatedActor, eventId: string
         })
       : null,
     activeRegistrationCounts([event.id], college.id).then((counts) => counts.get(event.id) ?? 0),
+    profile ? getScheduleConflictsForEvent(actor, event.id) : Promise.resolve([]),
   ]);
 
   return {
@@ -457,6 +391,7 @@ export async function getStudentEvent(actor: AuthenticatedActor, eventId: string
     activeCount,
     timezone: college.timezone,
     categories: eventCategories(event),
+    conflicts,
   };
 }
 
@@ -496,13 +431,46 @@ export async function getStudentRegistrations(actor: AuthenticatedActor) {
     { total: 0, confirmed: 0, attended: 0, cancelled: 0 },
   );
 
+  const upcoming = registrations.filter(
+    (registration) => registration.event.startsAt >= now && registration.status === "CONFIRMED",
+  );
+  const conflictsByEventId = new Map<string, ScheduleConflict[]>();
+
+  for (let leftIndex = 0; leftIndex < upcoming.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < upcoming.length; rightIndex += 1) {
+      const left = upcoming[leftIndex];
+      const right = upcoming[rightIndex];
+      const leftConflicts = detectScheduleConflicts(left.event, [right.event]);
+      const rightConflicts = detectScheduleConflicts(right.event, [left.event]);
+
+      if (leftConflicts.length) {
+        conflictsByEventId.set(left.event.id, [
+          ...(conflictsByEventId.get(left.event.id) ?? []),
+          ...leftConflicts,
+        ]);
+      }
+      if (rightConflicts.length) {
+        conflictsByEventId.set(right.event.id, [
+          ...(conflictsByEventId.get(right.event.id) ?? []),
+          ...rightConflicts,
+        ]);
+      }
+    }
+  }
+
   return {
-    upcoming: registrations.filter(
-      (registration) => registration.event.startsAt >= now && registration.status === "CONFIRMED",
-    ),
-    past: registrations.filter(
-      (registration) => registration.event.startsAt < now || registration.status !== "CONFIRMED",
-    ),
+    upcoming: upcoming.map((registration) => ({
+      ...registration,
+      conflicts: conflictsByEventId.get(registration.event.id) ?? [],
+    })),
+    past: registrations
+      .filter(
+        (registration) => registration.event.startsAt < now || registration.status !== "CONFIRMED",
+      )
+      .map((registration) => ({
+        ...registration,
+        conflicts: [] as ScheduleConflict[],
+      })),
     counts,
   };
 }
@@ -566,23 +534,94 @@ export async function getStudentCalendar(actor: AuthenticatedActor) {
   };
 }
 
-export async function getStudentNotifications(actor: AuthenticatedActor) {
+const NOTIFICATION_TYPES = new Set<NotificationType>([
+  "SYSTEM",
+  "EVENT_REMINDER",
+  "REGISTRATION_UPDATE",
+  "ATTENDANCE_UPDATE",
+  "FEEDBACK_UPDATE",
+  "MODERATION_UPDATE",
+  "CLUB_UPDATE",
+]);
+
+function safeNotificationActionUrl(value: string | null): string | null {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return null;
+  }
+
+  return value;
+}
+
+export type NotificationFilters = {
+  filter?: string;
+  type?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export async function getStudentNotifications(
+  actor: AuthenticatedActor,
+  filters: NotificationFilters = {},
+) {
   const { college } = await getStudentContext(actor);
 
   if (!college) {
-    return { notifications: [], unread: 0 };
+    return {
+      notifications: [],
+      unread: 0,
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      totalPages: 0,
+      filters: { filter: "all", type: "" },
+      typeCounts: [] as { type: NotificationType; count: number }[],
+    };
   }
 
-  const [notifications, unread] = await Promise.all([
+  const unreadOnly = filters.filter === "unread";
+  const type =
+    filters.type && NOTIFICATION_TYPES.has(filters.type as NotificationType)
+      ? (filters.type as NotificationType)
+      : null;
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 10, 1), 50);
+  const page = Math.max(filters.page ?? 1, 1);
+  const where: Prisma.NotificationWhereInput = {
+    collegeId: college.id,
+    userId: actor.id,
+    ...(unreadOnly ? { readAt: null } : {}),
+    ...(type ? { type } : {}),
+  };
+
+  const [notifications, unread, total, typeCounts] = await Promise.all([
     prisma.notification.findMany({
-      where: { collegeId: college.id, userId: actor.id },
-      orderBy: { createdAt: "desc" },
-      take: 50,
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     }),
     prisma.notification.count({ where: { collegeId: college.id, userId: actor.id, readAt: null } }),
+    prisma.notification.count({ where }),
+    prisma.notification.groupBy({
+      by: ["type"],
+      where: { collegeId: college.id, userId: actor.id },
+      _count: { _all: true },
+      orderBy: { type: "asc" },
+    }),
   ]);
 
-  return { notifications, unread };
+  return {
+    notifications: notifications.map((notification) => ({
+      ...notification,
+      actionUrl: safeNotificationActionUrl(notification.actionUrl),
+    })),
+    unread,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    filters: { filter: unreadOnly ? "unread" : "all", type: type ?? "" },
+    typeCounts: typeCounts.map((row) => ({ type: row.type, count: row._count._all })),
+  };
 }
 
 export async function getStudentProfile(actor: AuthenticatedActor) {
@@ -645,6 +684,25 @@ export async function getClubWorkspace(actor: AuthenticatedActor, requestedClubI
   }
 
   return { clubs, club: clubs[0] ?? null };
+}
+
+export async function getClubEventFormOptions(actor: AuthenticatedActor) {
+  assertClubDashboard(actor);
+
+  const [categories, interests] = await Promise.all([
+    prisma.category.findMany({
+      where: { collegeId: actor.collegeId!, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, slug: true },
+    }),
+    prisma.interest.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, slug: true },
+    }),
+  ]);
+
+  return { categories, interests };
 }
 
 export async function getClubDashboard(actor: AuthenticatedActor, requestedClubId?: string) {
@@ -1226,7 +1284,7 @@ export async function getCollegeEvents(actor: AuthenticatedActor, status?: strin
 export async function getCollegeApprovals(actor: AuthenticatedActor) {
   const college = await getCollegeContext(actor);
 
-  const [pendingEvents, pendingClubs, recentlyDecided] = await Promise.all([
+  const [pendingEvents, pendingClubs, pendingDuplicates, recentlyDecided] = await Promise.all([
     prisma.event.findMany({
       where: { collegeId: college.id, status: "PENDING_APPROVAL", deletedAt: null },
       select: eventListSelect,
@@ -1247,6 +1305,7 @@ export async function getCollegeApprovals(actor: AuthenticatedActor) {
       orderBy: { createdAt: "asc" },
       take: 100,
     }),
+    getPendingDuplicateReviewsForCollege(actor),
     prisma.auditLog.findMany({
       where: {
         collegeId: college.id,
@@ -1265,7 +1324,7 @@ export async function getCollegeApprovals(actor: AuthenticatedActor) {
     }),
   ]);
 
-  return { college, pendingEvents, pendingClubs, recentlyDecided };
+  return { college, pendingEvents, pendingClubs, pendingDuplicates, recentlyDecided };
 }
 
 export async function getCollegeClubs(actor: AuthenticatedActor, status?: string) {
@@ -1585,7 +1644,9 @@ export async function getCollegeEvent(actor: AuthenticatedActor, eventId: string
     return null;
   }
 
-  return { college, event };
+  const duplicates: DuplicateReview[] = await getDuplicateReviewsForEvent(actor, event.id);
+
+  return { college, event, duplicates };
 }
 
 export async function getPlatformDashboard(actor: AuthenticatedActor) {

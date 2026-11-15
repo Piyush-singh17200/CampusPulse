@@ -2,10 +2,13 @@
 
 Prompt 5 implements four authenticated, role-specific CampusPulse dashboards.
 Prompt 6 extends them with event poster management, authenticated poster
-delivery, and transactional in-app notifications. Every page reads real
-PostgreSQL data through server-only query functions and every mutation goes
-through a Server Action backed by an existing domain service. No dashboard
-exposes Prisma to client components and no public business API was added.
+delivery, and transactional in-app notifications. Prompt 7 adds local poster
+OCR review, student recommendations, advisory duplicate review, and schedule-
+conflict warnings. Every page reads real PostgreSQL data through server-only
+query functions and every mutation goes through a Server Action backed by an
+existing domain service. No dashboard exposes Prisma to client components and
+no public business API was added. See `docs/event-intelligence.md` for the
+feature algorithms and limitations.
 
 ## 1. Access model
 
@@ -201,7 +204,40 @@ Saved events are persisted in PostgreSQL rather than browser storage.
 - The dashboard notification page reads and marks existing notification rows as
   read. Email/push/SMS delivery is not configured.
 
-## 7. UI and responsive behavior
+## 7. Event intelligence surfaces
+
+### Club OCR review
+
+- `/club/events/[eventId]/edit` renders `PosterOcrPanel` for draft or rejected
+  events with a primary poster.
+- The panel shows OCR status, a safe failure message, extracted values, evidence,
+  confidence when defensible, and per-field Accept/Reject/Pending decisions.
+- Accepted values are editable before saving. Applying a review calls the normal
+  event update service and keeps the event in `DRAFT`/`REJECTED`.
+- The page remains fully usable without OCR; manual event creation is never
+  blocked by an OCR failure or pending worker.
+
+### Student recommendations and conflicts
+
+- The student overview shows deterministic recommendations with a single
+  honest explanation under each event card. If recommendations are unavailable
+  or empty, it falls back to recent events and a neutral explanation.
+- The student event detail page shows advisory schedule conflicts before
+  registration. The registrations list marks rows that overlap another active
+  registration.
+- Registration still succeeds when a conflict is advisory; the confirmation
+  message includes the warning and says the place is reserved.
+
+### College duplicate review
+
+- `/college/approvals` includes a duplicate-suggestion section and a pending
+  count. Pending event rows show a duplicate-flag badge when suggestions exist.
+- `/college/events/[eventId]` shows duplicate suggestions involving that event.
+- `DuplicateReviewCard` displays both events, confidence, reasons, and
+  Confirm/Dismiss actions. The UI states that review never merges, rejects,
+  cancels, or deletes either event.
+
+## 8. UI and responsive behavior
 
 `src/components/dashboard/dashboard-shell.tsx` provides a shared application
 shell with role-specific navigation, workspace identity, user identity, sign-out,
@@ -222,7 +258,7 @@ widths. Tables scroll horizontally only where a wide audit view needs it; the
 primary dashboard content stacks on narrow screens. Loading, empty, error, and
 not-found states are implemented per workspace.
 
-## 8. Tests
+## 9. Tests
 
 Dashboard and event-operation test coverage includes:
 
@@ -249,13 +285,20 @@ Dashboard and event-operation test coverage includes:
   guards;
 - Playwright create → preview → submit → approve → student view → register →
   club registration list → cancel → replace → access-control checks → remove →
-  responsive layouts.
+  responsive layouts;
+- Prompt 7 OCR extraction and review, OCR claim/failure safety, recommendation
+  eligibility and explanations, duplicate scoring/review and the submission
+  hook, schedule-overlap detection, registration revalidation, and audit
+  metadata;
+- Prompt 7 Playwright OCR review, recommendations, duplicate review, conflict
+  warnings, and responsive layouts.
 
-All tests run against the isolated `campuspulse_test` database. The dashboard
-and Prompt 6 migrations are applied by the test global setup through
-`prisma migrate deploy`.
+All tests run against the isolated `campuspulse_test` database. The dashboard,
+Prompt 6, and Prompt 7 migrations are applied by the test global setup through
+`prisma migrate deploy`. The Prompt 7 suite was verified with 24 test files /
+189 tests passing.
 
-## 9. Visual verification
+## 10. Visual verification
 
 Desktop and mobile overview screenshots for all four workspaces are stored in
 `docs/screenshots/prompt-5/`:
@@ -271,12 +314,17 @@ registration, club registration list, cancellation notification, replacement,
 removal fallback, and student event detail at 360, 390, 768, 1024, 1280, and
 1440 pixel widths.
 
+Prompt 7 workflow screenshots are stored in `docs/screenshots/prompt-7/` and
+cover the OCR review panel, student recommendations, college duplicate review,
+schedule-conflict warning, and responsive layouts at 360, 390, 768, 1024, 1280,
+and 1440 pixel widths.
+
 The final browser pass exercised 360, 390, 768, 1024, 1280, and 1440 pixel
 widths. Every role had zero horizontal overflow, the mobile navigation drawer
 opened with all role links and closed with Escape, and all four workspaces had
 zero console or page errors.
 
-## 10. Known limitations
+## 11. Known limitations
 
 - Tenant isolation remains application-layer scoping plus composite foreign
   keys; PostgreSQL RLS is not implemented.
@@ -288,8 +336,11 @@ zero console or page errors.
   are not configured; the dashboard reads and marks existing rows as read.
 - Poster storage uses the local filesystem adapter. It is not shared across
   instances, CDN-backed, or malware-scanned. See `docs/poster-storage.md`.
-- There is no OCR, duplicate-detection algorithm, recommendation engine, or QR
-  check-in flow.
+- OCR is English-only, request-bound, and has no durable queue or progress
+  percentage. Recommendations are deterministic and do not learn from clicks.
+  Duplicate detection is lexical and advisory. Schedule conflicts are advisory
+  and have no travel-time buffer or blocking override.
+- There is no QR check-in flow.
 - The platform settings page is a configuration summary; there is no platform
   settings mutation service yet.
 - This dashboard work is not a production-readiness claim; no penetration test

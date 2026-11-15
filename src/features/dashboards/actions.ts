@@ -7,11 +7,23 @@ import { DomainError, InvalidInputError } from "@/server/errors";
 import { assertSameOrigin } from "@/server/auth/csrf";
 import { requireAuthenticatedUser } from "@/server/auth/session";
 import { POSTER_MAX_BYTES, validatePosterImage } from "@/server/posters/image";
-import { markAttendance } from "@/services/attendance";
+import {
+  correctAttendance,
+  issueAttendanceQr,
+  markAttendance,
+  scanAttendance,
+} from "@/services/attendance";
+import { moderateFeedback, submitFeedback, updateFeedback } from "@/services/feedback";
 import { changeCollegeStatus, updateCollegeSettings } from "@/services/colleges";
 import { decideClub, updateClubProfile } from "@/services/clubs";
+import { reviewDuplicate } from "@/services/duplicate-events";
 import { createEventDraft, transitionEvent, updateEvent } from "@/services/events";
-import { markAllNotificationsRead, markNotificationRead } from "@/services/notifications";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+  updateNotificationPreferences,
+} from "@/services/notifications";
+import { applyPosterOcrReview, processPosterOcr } from "@/services/poster-ocr";
 import { removeEventPoster, uploadEventPoster } from "@/services/posters";
 import { cancelRegistration, registerForEvent } from "@/services/registrations";
 import { saveEvent, unsaveEvent } from "@/services/saved-events";
@@ -105,12 +117,23 @@ export async function registerForEventAction(
   try {
     const user = await actor();
     const eventId = field(formData, "eventId");
-    await registerForEvent(user, { eventId });
+    const result = await registerForEvent(user, { eventId });
     revalidatePath("/student");
     revalidatePath("/student/discover");
     revalidatePath(`/student/events/${eventId}`);
     revalidatePath("/student/registrations");
     revalidatePath("/student/calendar");
+
+    const conflicts = result.scheduleConflicts ?? [];
+    if (conflicts.length) {
+      const first = conflicts[0];
+      return success(
+        `Your registration is confirmed. Schedule warning: this overlaps with "${first.title}"${
+          conflicts.length > 1 ? ` and ${conflicts.length - 1} other event(s)` : ""
+        }. Your place is still reserved.`,
+      );
+    }
+
     return success("Your registration is confirmed.");
   } catch (error) {
     return errorState(error);
@@ -204,6 +227,8 @@ function eventInput(formData: FormData) {
     isOnline: boolField(formData, "isOnline"),
     onlineUrl: nullableField(formData, "onlineUrl"),
     capacity: numberOrNull(formData, "capacity"),
+    categoryIds: formData.getAll("categoryIds").map(String).filter(Boolean),
+    interestIds: formData.getAll("interestIds").map(String).filter(Boolean),
   };
 }
 
@@ -353,6 +378,66 @@ export async function updateEventAction(
   }
 }
 
+export async function runPosterOcrAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    const eventId = field(formData, "eventId");
+    const result = await processPosterOcr(user, { posterId: field(formData, "posterId") });
+
+    revalidatePath(`/club/events/${eventId}/edit`);
+
+    if (result.status === "FAILED") {
+      return { status: "error", message: result.error ?? "The poster could not be processed." };
+    }
+    if (result.status === "PROCESSING" || result.status === "PENDING") {
+      return success("OCR is already running. Refresh the page in a moment to review it.");
+    }
+
+    return success("Poster details extracted. Review each suggestion before applying it.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function applyPosterOcrAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    const eventId = field(formData, "eventId");
+    const payload = field(formData, "payload");
+
+    let decisions: unknown;
+    try {
+      decisions = JSON.parse(payload);
+    } catch {
+      throw new InvalidInputError("The OCR review payload is not valid.");
+    }
+
+    await applyPosterOcrReview(user, {
+      posterId: field(formData, "posterId"),
+      eventId,
+      decisions,
+    });
+
+    revalidatePath(`/club/events/${eventId}`);
+    revalidatePath(`/club/events/${eventId}/edit`);
+    revalidatePath("/club/events");
+    revalidatePath("/college/events");
+    revalidatePath(`/college/events/${eventId}`);
+    revalidatePath("/student");
+    revalidatePath(`/student/events/${eventId}`);
+
+    return success("OCR review saved. Check the event details before submitting.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
 export async function transitionEventAction(
   _previous: DashboardActionState,
   formData: FormData,
@@ -373,6 +458,33 @@ export async function transitionEventAction(
     revalidatePath("/college/events");
     revalidatePath(`/college/events/${eventId}`);
     return success("Event status updated.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function reviewDuplicateAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await reviewDuplicate(user, {
+      duplicateId: field(formData, "duplicateId"),
+      decision: field(formData, "decision"),
+    });
+    revalidatePath("/college");
+    revalidatePath("/college/approvals");
+    revalidatePath("/college/events");
+    const eventId = field(formData, "eventId");
+    if (eventId) {
+      revalidatePath(`/college/events/${eventId}`);
+    }
+    return success(
+      field(formData, "decision") === "CONFIRM"
+        ? "Duplicate confirmed. Both event records were left unchanged."
+        : "Duplicate suggestion dismissed.",
+    );
   } catch (error) {
     return errorState(error);
   }
@@ -430,6 +542,165 @@ export async function markAttendanceAction(
     revalidatePath("/club/attendance");
     revalidatePath("/club/analytics");
     return success("Attendance recorded.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function issueAttendanceQrAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    const registrationId = field(formData, "registrationId");
+    const issued = await issueAttendanceQr(user, registrationId);
+    revalidatePath("/student/registrations");
+    revalidatePath(`/student/registrations/${registrationId}/attendance`);
+
+    return {
+      status: "success",
+      message: "Attendance QR generated. It is valid for this event's check-in window.",
+      data: {
+        qr: {
+          qrDataUrl: issued.qrDataUrl,
+          payload: issued.payload,
+          expiresAt: issued.expiresAt.toISOString(),
+        },
+      },
+    };
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+/**
+ * Direct server action used by the scanner after a QR decode or manual code
+ * submission. The scanner never supplies a student identity; the server derives
+ * it from the credential and the authenticated organizer.
+ */
+export async function scanAttendanceAction(formData: FormData): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    const result = await scanAttendance(user, {
+      eventId: field(formData, "eventId"),
+      token: field(formData, "token"),
+    });
+    revalidatePath("/club/attendance");
+    revalidatePath("/club/analytics");
+    revalidatePath("/student/registrations");
+
+    return {
+      status: "success",
+      message: `${result.studentName} checked in successfully.`,
+      data: {
+        scan: {
+          studentName: result.studentName,
+          rollNumber: result.rollNumber,
+          eventTitle: result.eventTitle,
+          checkedInAt: result.checkedInAt.toISOString(),
+        },
+      },
+    };
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function correctAttendanceAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await correctAttendance(user, {
+      registrationId: field(formData, "registrationId"),
+      status: field(formData, "status"),
+      reason: field(formData, "reason"),
+    });
+    revalidatePath("/club/attendance");
+    revalidatePath("/club/analytics");
+    revalidatePath("/college/analytics");
+    revalidatePath("/student/registrations");
+    return success("Attendance correction recorded.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function submitFeedbackAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await submitFeedback(user, {
+      eventId: field(formData, "eventId"),
+      rating: field(formData, "rating"),
+      comment: nullableField(formData, "comment"),
+    });
+    revalidatePath("/student/feedback");
+    revalidatePath("/club/feedback");
+    revalidatePath("/college/analytics");
+    return success("Thank you. Your feedback was submitted.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function updateFeedbackAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await updateFeedback(user, {
+      eventId: field(formData, "eventId"),
+      rating: field(formData, "rating"),
+      comment: nullableField(formData, "comment"),
+    });
+    revalidatePath("/student/feedback");
+    revalidatePath("/club/feedback");
+    revalidatePath("/college/analytics");
+    return success("Your feedback was updated.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function moderateFeedbackAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await moderateFeedback(user, {
+      feedbackId: field(formData, "feedbackId"),
+      decision: field(formData, "decision"),
+      reason: field(formData, "reason"),
+    });
+    revalidatePath("/college/feedback");
+    revalidatePath("/college/analytics");
+    revalidatePath("/club/feedback");
+    return success("Feedback moderation decision recorded.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function updateNotificationPreferencesAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await actor();
+    await updateNotificationPreferences(user, {
+      registrationUpdates: boolField(formData, "registrationUpdates"),
+      attendanceUpdates: boolField(formData, "attendanceUpdates"),
+      feedbackUpdates: boolField(formData, "feedbackUpdates"),
+    });
+    revalidatePath("/student/notifications");
+    return success("Notification preferences saved.");
   } catch (error) {
     return errorState(error);
   }

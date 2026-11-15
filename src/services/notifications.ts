@@ -13,6 +13,24 @@ const notificationSchema = z.object({
   notificationId: uuidSchema,
 });
 
+const preferenceSchema = z.object({
+  registrationUpdates: z.boolean(),
+  attendanceUpdates: z.boolean(),
+  feedbackUpdates: z.boolean(),
+});
+
+export type NotificationPreferenceView = {
+  registrationUpdates: boolean;
+  attendanceUpdates: boolean;
+  feedbackUpdates: boolean;
+};
+
+export const defaultNotificationPreferences: NotificationPreferenceView = {
+  registrationUpdates: true,
+  attendanceUpdates: true,
+  feedbackUpdates: true,
+};
+
 async function notificationScope(actor: AuthenticatedActor) {
   assertActorActive(actor);
 
@@ -84,5 +102,57 @@ export async function markAllNotificationsRead(actor: AuthenticatedActor) {
     }
 
     return result.count;
+  });
+}
+
+export async function getNotificationPreferences(
+  actor: AuthenticatedActor,
+): Promise<NotificationPreferenceView> {
+  const scope = await notificationScope(actor);
+  const preference = await prisma.notificationPreference.findUnique({
+    where: { userId: scope.userId },
+    select: {
+      registrationUpdates: true,
+      attendanceUpdates: true,
+      feedbackUpdates: true,
+    },
+  });
+
+  return preference ?? defaultNotificationPreferences;
+}
+
+export async function updateNotificationPreferences(
+  actor: AuthenticatedActor,
+  input: unknown,
+): Promise<NotificationPreferenceView> {
+  const data = parseServiceInput(preferenceSchema, input);
+  const scope = await notificationScope(actor);
+
+  return runInTransaction(prisma, async (tx) => {
+    const preference = await tx.notificationPreference.upsert({
+      where: { userId: scope.userId },
+      create: {
+        collegeId: scope.collegeId,
+        userId: scope.userId,
+        ...data,
+      },
+      update: data,
+      select: {
+        registrationUpdates: true,
+        attendanceUpdates: true,
+        feedbackUpdates: true,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      collegeId: scope.collegeId,
+      actorUserId: actor.id,
+      action: "NOTIFICATION_PREFERENCES_UPDATED",
+      entityType: "NotificationPreference",
+      entityId: scope.userId,
+      metadata: { ...data },
+    });
+
+    return preference;
   });
 }

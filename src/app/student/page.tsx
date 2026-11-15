@@ -137,11 +137,11 @@ export default async function StudentOverviewPage() {
           </SectionCard>
 
           <SectionCard
-            title={data.recommended.length ? "Picked for you" : "Recently published"}
+            title={data.recommendations.length ? "Picked for you" : "Recently published"}
             description={
-              data.recommended.length
-                ? "Based on the categories of events you have registered for."
-                : "The newest published events from active clubs."
+              data.recommendations.length
+                ? "Based on your interests, event categories, timing, and campus activity."
+                : (data.recommendationReason ?? "The newest published events from active clubs.")
             }
             action={
               <Link
@@ -153,9 +153,42 @@ export default async function StudentOverviewPage() {
             }
             bodyClassName="p-4 sm:p-5"
           >
-            {(data.recommended.length ? data.recommended : data.recent).length ? (
+            {data.recommendations.length ? (
               <div className="grid gap-4 md:grid-cols-2">
-                {(data.recommended.length ? data.recommended : data.recent).map((event) => (
+                {data.recommendations.map(({ event, explanations }) => (
+                  <div key={event.id} className="space-y-2">
+                    <DashboardEventCard
+                      event={event}
+                      href={`/student/events/${event.id}`}
+                      saved={savedIds.has(event.id)}
+                      action={
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/student/events/${event.id}`}
+                            className={buttonStyles({ variant: "outline", size: "sm" })}
+                          >
+                            View
+                          </Link>
+                          <ActionForm
+                            action={savedIds.has(event.id) ? unsaveEventAction : saveEventAction}
+                            fields={{ eventId: event.id }}
+                            submitLabel={savedIds.has(event.id) ? "Unsave" : "Save"}
+                            variant="ghost"
+                            size="sm"
+                            showMessage={false}
+                          />
+                        </div>
+                      }
+                    />
+                    {explanations[0] ? (
+                      <p className="px-1 text-[11px] leading-5 text-muted">{explanations[0]}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : data.recent.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {data.recent.map((event) => (
                   <DashboardEventCard
                     key={event.id}
                     event={event}

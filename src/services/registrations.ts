@@ -15,6 +15,8 @@ import {
   TenantIsolationError,
 } from "@/server/errors";
 import { assertStudent, type AuthenticatedActor } from "@/services/authorization";
+import { revokeAttendanceCredentialsForRegistration } from "@/services/attendance-credentials";
+import { getScheduleConflictsForRegistration } from "@/services/schedule-conflicts";
 import { parseServiceInput, uuidSchema } from "@/services/validation";
 
 export const REGISTRATION_TRANSITIONS: Record<RegistrationStatus, readonly RegistrationStatus[]> = {
@@ -91,6 +93,7 @@ export async function registerForEvent(actor: AuthenticatedActor, input: unknown
           title: true,
           status: true,
           startsAt: true,
+          endsAt: true,
           registrationOpensAt: true,
           registrationDeadline: true,
           capacity: true,
@@ -165,6 +168,22 @@ export async function registerForEvent(actor: AuthenticatedActor, input: unknown
         }
       }
 
+      // Server-side revalidation for schedule overlap. The result is recorded in
+      // the audit log and returned to the caller as an advisory warning. The
+      // current registration model has no organizer-approved override, so this
+      // does not block an otherwise valid registration.
+      const scheduleConflicts = await getScheduleConflictsForRegistration(
+        tx,
+        studentProfile.id,
+        event.collegeId,
+        {
+          id: event.id,
+          title: event.title,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+        },
+      );
+
       const registration = existing
         ? await tx.eventRegistration.update({
             where: { id: existing.id },
@@ -206,10 +225,19 @@ export async function registerForEvent(actor: AuthenticatedActor, input: unknown
           eventId: event.id,
           from: existing?.status ?? null,
           to: "CONFIRMED",
+          scheduleConflictCount: scheduleConflicts.length,
+          scheduleConflicts: scheduleConflicts.map((conflict) => ({
+            eventId: conflict.eventId,
+            title: conflict.title,
+            type: conflict.type,
+            overlapMinutes: conflict.overlapMinutes,
+            startsAt: conflict.startsAt?.toISOString() ?? null,
+            endsAt: conflict.endsAt?.toISOString() ?? null,
+          })),
         },
       });
 
-      return registration;
+      return Object.assign(registration, { scheduleConflicts });
     });
   } catch (error) {
     if (isPrismaUniqueConstraintError(error)) {
@@ -277,6 +305,8 @@ export async function cancelRegistration(actor: AuthenticatedActor, input: unkno
     if (result.count !== 1) {
       throw new DomainError("CONFLICT", "The registration changed while it was cancelled.", 409);
     }
+
+    await revokeAttendanceCredentialsForRegistration(tx, registration.id, registration.collegeId);
 
     await createNotifications(tx, [
       {

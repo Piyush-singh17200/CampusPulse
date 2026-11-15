@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
 import { ActionForm, ReasonActionForm } from "@/features/dashboards/components/action-form";
+import { DuplicateReviewCard } from "@/features/dashboards/components/duplicate-review";
 import { transitionEventAction } from "@/features/dashboards/actions";
 import { formatDateRange, formatDateTime } from "@/lib/format";
 import { requireDashboardRole } from "@/server/auth/page-guard";
@@ -118,6 +119,20 @@ export default async function CollegeEventPage({
               </p>
             )}
           </SectionCard>
+
+          {data.duplicates.length ? (
+            <SectionCard
+              title="Duplicate review"
+              description="Advisory matches involving this event. Reviewing a suggestion never changes either event's status."
+              bodyClassName="p-4 sm:p-5"
+            >
+              <div className="space-y-4">
+                {data.duplicates.map((duplicate) => (
+                  <DuplicateReviewCard key={duplicate.id} duplicate={duplicate} />
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             title="Review and terminal states"

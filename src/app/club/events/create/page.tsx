@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/states";
 import { createEventAction } from "@/features/dashboards/actions";
 import { EventForm } from "@/features/dashboards/components/event-form";
 import { requireDashboardRole } from "@/server/auth/page-guard";
-import { getClubWorkspace } from "@/server/dashboards/queries";
+import { getClubEventFormOptions, getClubWorkspace } from "@/server/dashboards/queries";
 
 export const metadata: Metadata = {
   title: "Create event",
@@ -26,6 +26,7 @@ export default async function ClubCreateEventPage({
   const params = await searchParams;
   const clubId = typeof params.club === "string" ? params.club : undefined;
   const data = await getClubWorkspace(user, clubId);
+  const options = await getClubEventFormOptions(user);
 
   if (!data.club) {
     return (
@@ -67,7 +68,13 @@ export default async function ClubCreateEventPage({
           title="Event details"
           description={`Creating for ${data.club.name}. All times use your college timezone.`}
         >
-          <EventForm mode="create" clubId={data.club.id} action={createEventAction} />
+          <EventForm
+            mode="create"
+            clubId={data.club.id}
+            categories={options.categories}
+            interests={options.interests}
+            action={createEventAction}
+          />
         </SectionCard>
       )}
     </div>

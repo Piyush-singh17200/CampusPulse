@@ -6,8 +6,9 @@ password recovery, RBAC, CSRF/origin checks, PostgreSQL-backed rate limiting,
 test-database safety, seed safety, and the landing/auth UI surface. The Prompt 5
 addendum covers the dashboard and saved-event surface. The Prompt 6 addendum
 covers authenticated poster upload/delivery and transactional notifications.
-Public business APIs, OCR, production object storage, and deployment remain out
-of scope.
+The Prompt 7 addendum covers local OCR, recommendations, duplicate review, and
+schedule-conflict warnings. Public business APIs, production object storage, and
+deployment remain out of scope.
 
 Review date: 2026-11-09.
 
@@ -250,6 +251,60 @@ Critical/High issue for the current phase.
     test database, and remote hosts; fictional local-only data and idempotent
     upserts.
 
+## Prompt 7 addendum
+
+Prompt 7 adds local poster OCR, deterministic recommendations, advisory
+duplicate review, and schedule-conflict warnings. Addendum date: 2026-11-13.
+
+### Controls reviewed
+
+- **OCR authorization and storage.** OCR is a server action that reloads the
+  actor, event, club, and poster. It requires an active owning-club
+  president/officer and a `DRAFT`/`REJECTED` event, then reuses the existing
+  poster storage adapter and image validation. OCR does not expose raw poster
+  bytes or storage keys to the browser.
+- **Local processing.** Tesseract.js and bundled English traineddata run
+  server-side. No external OCR, LLM, recommendation, or ranking service is
+  called. `next.config.ts` keeps the worker and data packages external to the
+  server bundle.
+- **Duplicate-request safety.** An atomic status claim prevents two OCR workers
+  from processing the same poster concurrently. Failures store a generic
+  user-facing message while server logs retain diagnostic detail.
+- **Review boundary.** OCR suggestions never publish, approve, submit, or
+  bypass lifecycle rules. Accepted values are applied through the normal event
+  update service with its validation, authorization, and audit path.
+- **Recommendation scoping.** Recommendations accept only the trusted student
+  actor, scope candidates to the student's college, exclude ineligible and
+  already-engaged events, and use bounded bulk queries. No browser-supplied
+  tenant or ranking input is trusted.
+- **Duplicate review scoping.** Detection and review are college-scoped; the
+  candidate query excludes the event itself and only considers non-deleted
+  pending/published/completed events. Review requires a same-college college
+  administrator and writes an audit record. It never merges, rejects, cancels,
+  or deletes an event.
+- **Conflict revalidation.** Registration revalidates conflicts server-side
+  inside the transaction, records the result in audit metadata, and returns it
+  to the UI. Conflicts are advisory; the current rules do not silently block a
+  valid registration.
+- **Timezone handling.** OCR wall-clock dates/times are interpreted in the
+  college's IANA timezone and converted to UTC. Conflict overlap uses absolute
+  timestamps; adjacent intervals do not conflict.
+- **CSP and client behavior.** New UI uses existing components and server
+  actions. No inline style or script allowance was added.
+
+### Residual risks for this addendum
+
+- OCR is English-only and accuracy varies with poster quality; ambiguous values
+  require organizer review.
+- OCR runs in the request process without a durable queue or per-request CPU
+  budget beyond the platform timeout.
+- Recommendations and duplicate detection are deterministic rules, not
+  semantic models; they can produce false negatives and lexical false
+  positives.
+- Duplicate and schedule warnings are advisory and do not enforce operational
+  policy.
+- No new secret or external API credential is introduced by Prompt 7.
+
 ## Residual risks
 
 - No production deployment, PostgreSQL RLS, SMTP, secret manager integration, or
@@ -277,5 +332,8 @@ No Critical/High issue was found in the implemented Prompt 4 scope. The Medium
 items are an explicitly deferred production-hardening item (RLS), a
 development-only transitive advisory, and missing production SMTP configuration.
 Prompt 6 found no new Critical/High code issue in the poster and notification
-surface. Production deployment must wait for RLS/email/secret-manager hardening,
-durable shared poster storage, and a separate deployment review.
+surface. Prompt 7 found no new Critical/High code issue in the OCR,
+recommendation, duplicate-review, or conflict-warning surface; residual risks are
+the documented advisory/accuracy limitations. Production deployment must wait
+for RLS/email/secret-manager hardening, durable shared poster storage, and a
+separate deployment review.

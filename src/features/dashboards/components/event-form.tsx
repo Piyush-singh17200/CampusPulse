@@ -23,14 +23,20 @@ export function EventForm({
   mode,
   clubId,
   event,
+  categories,
+  interests,
   action,
 }: {
   mode: "create" | "edit";
   clubId: string;
   event?: DashboardEventDetail;
+  categories: { id: string; name: string }[];
+  interests: { id: string; name: string }[];
   action: EventAction;
 }) {
   const [state, formAction, pending] = useActionState(action, initialDashboardActionState);
+  const selectedCategories = new Set(event?.categories.map((item) => item.category.id) ?? []);
+  const selectedInterests = new Set(event?.interests.map((item) => item.interest.id) ?? []);
 
   return (
     <form action={formAction} className="space-y-6" noValidate>
@@ -68,6 +74,66 @@ export function EventForm({
             placeholder="What should students expect?"
           />
         </Field>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <fieldset className="space-y-3">
+          <legend className="text-[13px] font-semibold text-ink">Categories</legend>
+          <p className="text-xs leading-5 text-muted">
+            Used for discovery and to explain category-based recommendations.
+          </p>
+          {categories.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {categories.map((category) => (
+                <label
+                  key={category.id}
+                  className="flex items-center gap-2.5 rounded-md border border-line bg-paper px-3 py-2.5 text-[12px] font-semibold text-ink-soft"
+                >
+                  <input
+                    type="checkbox"
+                    name="categoryIds"
+                    value={category.id}
+                    defaultChecked={selectedCategories.has(category.id)}
+                    className="size-4 accent-forest"
+                  />
+                  {category.name}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">
+              No active categories are configured for this college.
+            </p>
+          )}
+        </fieldset>
+
+        <fieldset className="space-y-3">
+          <legend className="text-[13px] font-semibold text-ink">Interests</legend>
+          <p className="text-xs leading-5 text-muted">
+            Tag the event so student interest matches are explicit and explainable.
+          </p>
+          {interests.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {interests.map((interest) => (
+                <label
+                  key={interest.id}
+                  className="flex items-center gap-2.5 rounded-md border border-line bg-paper px-3 py-2.5 text-[12px] font-semibold text-ink-soft"
+                >
+                  <input
+                    type="checkbox"
+                    name="interestIds"
+                    value={interest.id}
+                    defaultChecked={selectedInterests.has(interest.id)}
+                    className="size-4 accent-forest"
+                  />
+                  {interest.name}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">No active interests are configured.</p>
+          )}
+        </fieldset>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">

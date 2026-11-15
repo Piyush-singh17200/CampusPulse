@@ -16,6 +16,7 @@ const navItems: DashboardNavItem[] = [
   { href: "/student/registrations", label: "My events", icon: "ticket" },
   { href: "/student/saved", label: "Saved", icon: "saved" },
   { href: "/student/calendar", label: "Calendar", icon: "calendar" },
+  { href: "/student/feedback", label: "Feedback", icon: "feedback" },
   { href: "/student/notifications", label: "Notifications", icon: "bell" },
   { href: "/student/profile", label: "Profile", icon: "profile" },
 ];

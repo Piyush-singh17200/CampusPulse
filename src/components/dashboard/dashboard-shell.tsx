@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquareText,
   Plus,
   ScrollText,
   Settings,
@@ -41,6 +42,7 @@ export type DashboardIcon =
   | "events"
   | "create"
   | "attendance"
+  | "feedback"
   | "analytics"
   | "audit"
   | "settings"
@@ -60,6 +62,7 @@ const icons = {
   events: ClipboardList,
   create: Plus,
   attendance: ClipboardCheck,
+  feedback: MessageSquareText,
   analytics: BarChart3,
   audit: ScrollText,
   settings: Settings,

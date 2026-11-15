@@ -38,7 +38,7 @@ export default async function StudentEventPage({
     notFound();
   }
 
-  const { event, registration, saved, activeCount, timezone } = result;
+  const { event, registration, saved, activeCount, timezone, conflicts } = result;
   const poster = event.posters[0] ?? null;
   const now = new Date();
   const registrationClosed =
@@ -56,9 +56,17 @@ export default async function StudentEventPage({
         title={event.title}
         description={event.summary ?? "Event details from your college."}
         actions={
-          <Link href="/student/discover" className={buttonStyles({ variant: "outline" })}>
-            Back to discovery
-          </Link>
+          <>
+            <a
+              href={`/api/calendar/events/${event.id}`}
+              className={buttonStyles({ variant: "outline" })}
+            >
+              Add to calendar
+            </a>
+            <Link href="/student/discover" className={buttonStyles({ variant: "outline" })}>
+              Back to discovery
+            </Link>
+          </>
         }
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -173,6 +181,36 @@ export default async function StudentEventPage({
         </div>
 
         <aside className="space-y-6">
+          {conflicts.length ? (
+            <SectionCard
+              title="Schedule warning"
+              description="Advisory only. Registration remains available unless another rule blocks it."
+            >
+              <ul className="space-y-3">
+                {conflicts.map((conflict) => (
+                  <li
+                    key={`${conflict.eventId}-${conflict.type}`}
+                    className="rounded-lg border border-signal/25 bg-signal/5 p-3"
+                  >
+                    <p className="text-[12px] font-bold leading-5 text-ink">{conflict.title}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-muted">
+                      {conflict.startsAt && conflict.endsAt
+                        ? formatDateRange(conflict.startsAt, conflict.endsAt, timezone)
+                        : "Time information is incomplete."}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5 text-signal-dark">
+                      {conflict.overlapMinutes !== null
+                        ? `Overlaps by about ${conflict.overlapMinutes} minute${
+                            conflict.overlapMinutes === 1 ? "" : "s"
+                          }.`
+                        : conflict.reason}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          ) : null}
+
           <SectionCard title="Your place" description="Registration status and actions.">
             {registered ? (
               <div className="space-y-4">
@@ -184,6 +222,12 @@ export default async function StudentEventPage({
                     {registration ? formatDateTime(registration.registeredAt, timezone) : ""}.
                   </p>
                 </div>
+                <Link
+                  href={`/student/registrations/${registration?.id}/attendance`}
+                  className={buttonStyles({ variant: "signal", size: "md" })}
+                >
+                  Open attendance QR
+                </Link>
                 <ActionForm
                   action={cancelRegistrationAction}
                   fields={{ eventId: event.id }}
@@ -198,6 +242,12 @@ export default async function StudentEventPage({
                 <p className="text-sm leading-6 text-muted">
                   Your attendance has been recorded by the event organizers.
                 </p>
+                <Link
+                  href={`/student/registrations/${registration.id}/attendance`}
+                  className={buttonStyles({ variant: "outline", size: "md" })}
+                >
+                  View attendance details
+                </Link>
               </div>
             ) : registration?.status === "NO_SHOW" ? (
               <div className="space-y-4">

@@ -1,14 +1,17 @@
 # CampusPulse database architecture
 
-This document describes the PostgreSQL/Prisma layer through Prompt 6. The
-database now includes Better Auth session/account tables, custom reset,
-rate-limit, and anonymous auth-audit tables, persistent saved events for the
-student dashboard, poster metadata and audit actions, and transactional in-app
-notifications for event moderation and registration changes. The business
-services and dashboard queries remain server-only building blocks and are not
-exposed through public business API routes; auth and dashboard mutations run
-through Server Actions. Poster bytes live in the configured storage adapter, not
-in PostgreSQL; see `docs/poster-storage.md`.
+This document describes the PostgreSQL/Prisma layer through Prompt 7. The
+database includes Better Auth session/account tables, custom reset, rate-limit,
+and anonymous auth-audit tables, persistent saved events for the student
+dashboard, poster metadata and audit actions, transactional in-app
+notifications for event moderation and registration changes, and the Prompt 7
+event-intelligence tables for OCR review, event interests, and advisory
+duplicate review. The business services and dashboard queries remain server-only
+building blocks and are not exposed through public business API routes; auth and
+dashboard mutations run through Server Actions. Poster bytes live in the
+configured storage adapter, not in PostgreSQL; see `docs/poster-storage.md`.
+See `docs/event-intelligence.md` for OCR, recommendation, duplicate, and
+schedule-conflict behavior.
 
 ## 1. Design principles
 
@@ -31,7 +34,7 @@ in PostgreSQL; see `docs/poster-storage.md`.
 
 ## 2. Models
 
-The schema has 23 models. The 17 business models are:
+The schema has 25 models. The 19 business models are:
 
 | Model               | Purpose                                         | Tenant key                                |
 | ------------------- | ----------------------------------------------- | ----------------------------------------- |
@@ -46,8 +49,10 @@ The schema has 23 models. The 17 business models are:
 | `Category`          | College-specific event category                 | `collegeId`                               |
 | `Event`             | Event and lifecycle state                       | `collegeId`                               |
 | `EventCategory`     | Event-category join                             | `collegeId`                               |
+| `EventInterest`     | Event-interest join for recommendations         | `collegeId`                               |
 | `EventRegistration` | Student registration                            | `collegeId`                               |
 | `EventPoster`       | Poster metadata, dimensions, and OCR state      | `collegeId`                               |
+| `PosterOcrField`    | Per-field OCR extraction and human review       | `collegeId`                               |
 | `EventFeedback`     | Post-event feedback                             | `collegeId`                               |
 | `Notification`      | User notification                               | `collegeId`                               |
 | `EventDuplicate`    | Moderation duplicate candidate                  | `collegeId`                               |
@@ -80,7 +85,8 @@ Important constraints beyond Prisma's model language are in
 - feedback ratings from 1 to 5;
 - positive poster byte size and `image/*` MIME type;
 - duplicate records cannot reference themselves and confidence is 0–1;
-- one primary poster per event (partial unique index).
+- one primary poster per event (partial unique index);
+- one interest link per event and one OCR row per poster/field.
 
 The audit enum was extended by
 `prisma/migrations/20261105045947_audit_event_actions/migration.sql` with
@@ -93,7 +99,11 @@ without resetting existing data. The additive
 `SAVED_EVENT_CHANGED` and `NOTIFICATION_READ` audit actions. The additive
 `prisma/migrations/20261111000000_prompt6_poster_audit/migration.sql` extends
 `AuditAction` with `POSTER_UPLOADED`, `POSTER_REPLACED`, and `POSTER_REMOVED`.
-Existing migrations and rows are untouched.
+The additive
+`prisma/migrations/20261113000000_prompt7_event_intelligence/migration.sql` adds
+the OCR enums, `event_interests`, `poster_ocr_fields`, OCR timestamps/error and
+composite poster uniqueness, and duplicate review reasons/indexes. Existing
+migrations and rows are untouched.
 
 ## 3. ER diagram
 
@@ -129,12 +139,15 @@ erDiagram
     StudentProfile ||--o{ EventFeedback : "writes"
 
     Interest ||--o{ StudentInterest : "classifies"
+    Interest ||--o{ EventInterest : "classifies"
 
     Category ||--o{ EventCategory : "classifies"
     Event ||--o{ EventCategory : "tagged"
+    Event ||--o{ EventInterest : "tagged"
     Event ||--o{ SavedEvent : "shortlisted"
     Event ||--o{ EventRegistration : "receives"
     Event ||--o{ EventPoster : "has"
+    EventPoster ||--o{ PosterOcrField : "extracts"
     Event ||--o{ EventFeedback : "receives"
     Event ||--o{ EventDuplicate : "primary"
     Event ||--o{ EventDuplicate : "candidate"
@@ -223,7 +236,30 @@ erDiagram
         int height
         varchar altText
         enum ocrStatus
+        varchar ocrError
+        timestamp ocrStartedAt
+        timestamp ocrCompletedAt
         boolean isPrimary
+    }
+    PosterOcrField {
+        uuid id PK
+        uuid collegeId FK
+        uuid posterId FK
+        enum field
+        text value
+        float confidence
+        text evidence
+        enum extractionStatus
+        enum reviewStatus
+        boolean requiresReview
+        text reviewedValue
+        timestamp reviewedAt
+    }
+    EventInterest {
+        uuid id PK
+        uuid collegeId FK
+        uuid eventId FK
+        uuid interestId FK
     }
     EventFeedback {
         uuid id PK
@@ -247,6 +283,7 @@ erDiagram
         uuid reviewedById FK
         enum status
         decimal confidence
+        text[] reasons
     }
     AuditLog {
         uuid id PK
@@ -387,8 +424,11 @@ transaction fails. See `docs/event-operations.md` and
    deadline, and capacity.
 5. Count active registrations (`CONFIRMED` + `ATTENDED`) while the event row is
    locked.
-6. Insert or reactivate the registration.
-7. Write the confirmation notification and audit record in the same transaction.
+6. Revalidate schedule conflicts against the student's active registrations in
+   the same college. The conflict list is advisory, returned to the caller, and
+   written to audit metadata; the current rules do not block registration.
+7. Insert or reactivate the registration.
+8. Write the confirmation notification and audit record in the same transaction.
 
 The event row is the serialization point. Two simultaneous registration
 transactions for the same event cannot both count the pre-insert state and then
@@ -425,7 +465,7 @@ Actions currently written by services:
 | Action                            | Trigger                                              |
 | --------------------------------- | ---------------------------------------------------- |
 | `EVENT_CREATED`                   | `createEventDraft`                                   |
-| `EVENT_UPDATED`                   | `updateEvent`                                        |
+| `EVENT_UPDATED`                   | `updateEvent`, including accepted poster OCR fields  |
 | `EVENT_APPROVED`                  | `PENDING_APPROVAL → PUBLISHED`                       |
 | `EVENT_REJECTED`                  | `PENDING_APPROVAL → REJECTED`                        |
 | `EVENT_CANCELLED`                 | any allowed transition to `CANCELLED`                |
@@ -442,6 +482,8 @@ Actions currently written by services:
 | `SAVED_EVENT_CHANGED`             | save/unsave event                                    |
 | `NOTIFICATION_READ`               | mark one/all notifications read                      |
 | `REGISTRATION_STATUS_CHANGED`     | registration, reactivation, cancellation, attendance |
+| `DUPLICATE_CONFIRMED`             | advisory duplicate review confirmed                  |
+| `DUPLICATE_DISMISSED`             | advisory duplicate review dismissed                  |
 
 Audit rows record `actorUserId`, action, `entityType`, `entityId`, optional
 `collegeId`, redacted metadata, and `createdAt`. No service exposes update or

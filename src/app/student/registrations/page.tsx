@@ -62,6 +62,14 @@ function RegistrationTable({
                   {registration.event.title}
                 </Link>
                 <p className="mt-1 text-[11px] text-muted">{registration.event.club.name}</p>
+                {registration.conflicts.length ? (
+                  <p className="mt-1 text-[10px] font-semibold leading-4 text-signal-dark">
+                    Overlaps with {registration.conflicts[0].title}
+                    {registration.conflicts.length > 1
+                      ? ` and ${registration.conflicts.length - 1} other`
+                      : ""}
+                  </p>
+                ) : null}
               </td>
               <td className="px-3 py-4 text-[12px] leading-5 text-ink-soft">
                 {formatDate(registration.event.startsAt)}
@@ -72,25 +80,34 @@ function RegistrationTable({
                 <StatusBadge status={registration.status} />
               </td>
               <td className="px-3 py-4 text-right">
-                {showCancel && registration.status === "CONFIRMED" ? (
-                  <ActionForm
-                    action={cancelRegistrationAction}
-                    fields={{ eventId: registration.event.id }}
-                    submitLabel="Cancel"
-                    pendingLabel="Cancelling…"
-                    variant="ghost"
-                    size="sm"
-                    showMessage={false}
-                    className="inline-block text-right"
-                  />
-                ) : (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {registration.status === "CONFIRMED" || registration.status === "ATTENDED" ? (
+                    <Link
+                      href={`/student/registrations/${registration.id}/attendance`}
+                      className={buttonStyles({ variant: "outline", size: "sm" })}
+                    >
+                      {registration.status === "ATTENDED" ? "Attendance" : "QR check-in"}
+                    </Link>
+                  ) : null}
+                  {showCancel && registration.status === "CONFIRMED" ? (
+                    <ActionForm
+                      action={cancelRegistrationAction}
+                      fields={{ eventId: registration.event.id }}
+                      submitLabel="Cancel"
+                      pendingLabel="Cancelling…"
+                      variant="ghost"
+                      size="sm"
+                      showMessage={false}
+                      className="inline-block text-right"
+                    />
+                  ) : null}
                   <Link
                     href={`/student/events/${registration.event.id}`}
                     className={buttonStyles({ variant: "ghost", size: "sm" })}
                   >
                     View
                   </Link>
-                )}
+                </div>
               </td>
             </tr>
           ))}

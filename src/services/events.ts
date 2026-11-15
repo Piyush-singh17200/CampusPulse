@@ -9,6 +9,10 @@ import { writeAuditLog } from "@/server/db/audit";
 import { createNotifications } from "@/server/db/notifications";
 import { runInTransaction } from "@/server/db/transactions";
 import {
+  clearPendingDuplicatesForEvent,
+  refreshEventDuplicates,
+} from "@/services/duplicate-events";
+import {
   ActorNotAuthorizedError,
   DomainError,
   InvalidInputError,
@@ -23,8 +27,10 @@ import {
 } from "@/services/authorization";
 import {
   getActiveClubManagerIds,
+  getAttendedRegistrationUserIds,
   getConfirmedRegistrationUserIds,
 } from "@/services/notification-recipients";
+import { revokeAttendanceCredentialsForEvent } from "@/services/attendance-credentials";
 import {
   assertDateOrder,
   eventStatusSchema,
@@ -64,12 +70,16 @@ const baseEventFields = {
   isOnline: z.boolean().default(false),
   onlineUrl: z.string().url().max(500).nullable().optional(),
   capacity: z.number().int().positive().max(100_000).nullable().optional(),
+  categoryIds: z.array(uuidSchema).max(10).optional(),
+  interestIds: z.array(uuidSchema).max(20).optional(),
 };
 
 const createEventSchema = z
   .object({
     clubId: uuidSchema,
     ...baseEventFields,
+    categoryIds: z.array(uuidSchema).max(10).default([]),
+    interestIds: z.array(uuidSchema).max(20).default([]),
   })
   .superRefine((value, context) => {
     if (value.isOnline && !value.onlineUrl) {
@@ -96,6 +106,8 @@ const updateEventSchema = z
     isOnline: baseEventFields.isOnline.optional(),
     onlineUrl: baseEventFields.onlineUrl,
     capacity: baseEventFields.capacity,
+    categoryIds: baseEventFields.categoryIds,
+    interestIds: baseEventFields.interestIds,
   })
   .superRefine((value, context) => {
     if (value.isOnline === true && value.onlineUrl === null) {
@@ -234,6 +246,78 @@ async function makeUniqueSlug(
   return candidate;
 }
 
+function uniqueIds(ids: string[]): string[] {
+  return Array.from(new Set(ids));
+}
+
+async function validateEventTaxonomy(
+  tx: Prisma.TransactionClient,
+  collegeId: string,
+  categoryIds: string[],
+  interestIds: string[],
+): Promise<void> {
+  if (categoryIds.length) {
+    const categories = await tx.category.findMany({
+      where: { id: { in: categoryIds }, collegeId, isActive: true },
+      select: { id: true },
+    });
+
+    if (categories.length !== categoryIds.length) {
+      throw new InvalidInputError(
+        "One or more selected categories are not available for this college.",
+      );
+    }
+  }
+
+  if (interestIds.length) {
+    const interests = await tx.interest.findMany({
+      where: { id: { in: interestIds }, isActive: true },
+      select: { id: true },
+    });
+
+    if (interests.length !== interestIds.length) {
+      throw new InvalidInputError("One or more selected interests are not available.");
+    }
+  }
+}
+
+async function replaceEventTaxonomy(
+  tx: Prisma.TransactionClient,
+  event: { id: string; collegeId: string },
+  categoryIds: string[] | null,
+  interestIds: string[] | null,
+): Promise<void> {
+  if (categoryIds !== null) {
+    await tx.eventCategory.deleteMany({
+      where: { eventId: event.id, collegeId: event.collegeId },
+    });
+    if (categoryIds.length) {
+      await tx.eventCategory.createMany({
+        data: categoryIds.map((categoryId) => ({
+          collegeId: event.collegeId,
+          eventId: event.id,
+          categoryId,
+        })),
+      });
+    }
+  }
+
+  if (interestIds !== null) {
+    await tx.eventInterest.deleteMany({
+      where: { eventId: event.id, collegeId: event.collegeId },
+    });
+    if (interestIds.length) {
+      await tx.eventInterest.createMany({
+        data: interestIds.map((interestId) => ({
+          collegeId: event.collegeId,
+          eventId: event.id,
+          interestId,
+        })),
+      });
+    }
+  }
+}
+
 export async function createEventDraft(actor: AuthenticatedActor, input: unknown) {
   assertActorActive(actor);
   const data = parseServiceInput(createEventSchema, input);
@@ -254,6 +338,9 @@ export async function createEventDraft(actor: AuthenticatedActor, input: unknown
     }
 
     assertCanCreateEvent(actor, club);
+    const categoryIds = uniqueIds(data.categoryIds);
+    const interestIds = uniqueIds(data.interestIds);
+    await validateEventTaxonomy(tx, club.collegeId, categoryIds, interestIds);
     const slug = await makeUniqueSlug(tx, club.collegeId, data.title);
 
     const event = await tx.event.create({
@@ -278,104 +365,131 @@ export async function createEventDraft(actor: AuthenticatedActor, input: unknown
       },
     });
 
+    await replaceEventTaxonomy(tx, event, categoryIds, interestIds);
+
     await writeAuditLog(tx, {
       collegeId: event.collegeId,
       actorUserId: actor.id,
       action: "EVENT_CREATED",
       entityType: "Event",
       entityId: event.id,
-      metadata: { clubId: event.clubId, status: event.status },
+      metadata: {
+        clubId: event.clubId,
+        status: event.status,
+        categoryIds,
+        interestIds,
+      },
     });
 
     return event;
   });
 }
 
-export async function updateEvent(actor: AuthenticatedActor, input: unknown) {
+export async function updateEventInTransaction(
+  tx: Prisma.TransactionClient,
+  actor: AuthenticatedActor,
+  input: unknown,
+  options: { auditMetadata?: Record<string, unknown>; skipAudit?: boolean } = {},
+) {
   assertActorActive(actor);
   const data = parseServiceInput(updateEventSchema, input);
 
-  return runInTransaction(prisma, async (tx) => {
-    const event = await tx.event.findUnique({
-      where: { id: data.eventId },
-      include: { club: true },
-    });
+  const event = await tx.event.findUnique({
+    where: { id: data.eventId },
+    include: { club: true },
+  });
 
-    if (!event || event.deletedAt) {
-      throw new DomainError("NOT_FOUND", "The requested event does not exist.", 404);
-    }
+  if (!event || event.deletedAt) {
+    throw new DomainError("NOT_FOUND", "The requested event does not exist.", 404);
+  }
 
-    assertCanManageEvent(actor, event);
+  assertCanManageEvent(actor, event);
 
-    if (event.status !== "DRAFT" && event.status !== "REJECTED") {
-      throw new InvalidTransitionError("Only draft or rejected events can be edited.");
-    }
+  if (event.status !== "DRAFT" && event.status !== "REJECTED") {
+    throw new InvalidTransitionError("Only draft or rejected events can be edited.");
+  }
 
-    const merged = {
-      startsAt: data.startsAt ?? event.startsAt,
-      endsAt: data.endsAt ?? event.endsAt,
-      registrationOpensAt:
-        data.registrationOpensAt !== undefined
-          ? data.registrationOpensAt
-          : event.registrationOpensAt,
-      registrationDeadline:
-        data.registrationDeadline !== undefined
-          ? data.registrationDeadline
-          : event.registrationDeadline,
-    };
+  const merged = {
+    startsAt: data.startsAt ?? event.startsAt,
+    endsAt: data.endsAt ?? event.endsAt,
+    registrationOpensAt:
+      data.registrationOpensAt !== undefined ? data.registrationOpensAt : event.registrationOpensAt,
+    registrationDeadline:
+      data.registrationDeadline !== undefined
+        ? data.registrationDeadline
+        : event.registrationDeadline,
+  };
 
-    assertDateOrder(merged);
+  assertDateOrder(merged);
 
-    const mergedIsOnline = data.isOnline ?? event.isOnline;
-    const mergedOnlineUrl = data.onlineUrl !== undefined ? data.onlineUrl : event.onlineUrl;
+  const mergedIsOnline = data.isOnline ?? event.isOnline;
+  const mergedOnlineUrl = data.onlineUrl !== undefined ? data.onlineUrl : event.onlineUrl;
 
-    if (mergedIsOnline && !mergedOnlineUrl) {
-      throw new InvalidInputError("An online event requires a URL.");
-    }
+  if (mergedIsOnline && !mergedOnlineUrl) {
+    throw new InvalidInputError("An online event requires a URL.");
+  }
 
-    const updateData: Prisma.EventUpdateManyMutationInput = {};
+  const categoryIds = data.categoryIds === undefined ? null : uniqueIds(data.categoryIds);
+  const interestIds = data.interestIds === undefined ? null : uniqueIds(data.interestIds);
 
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.summary !== undefined) updateData.summary = data.summary;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.startsAt !== undefined) updateData.startsAt = data.startsAt;
-    if (data.endsAt !== undefined) updateData.endsAt = data.endsAt;
-    if (data.registrationOpensAt !== undefined)
-      updateData.registrationOpensAt = data.registrationOpensAt;
-    if (data.registrationDeadline !== undefined)
-      updateData.registrationDeadline = data.registrationDeadline;
-    if (data.venueName !== undefined) updateData.venueName = data.venueName;
-    if (data.venueAddress !== undefined) updateData.venueAddress = data.venueAddress;
-    if (data.isOnline !== undefined) updateData.isOnline = data.isOnline;
-    if (data.onlineUrl !== undefined) updateData.onlineUrl = data.onlineUrl;
-    if (data.capacity !== undefined) updateData.capacity = data.capacity;
+  if (categoryIds !== null || interestIds !== null) {
+    await validateEventTaxonomy(tx, event.collegeId, categoryIds ?? [], interestIds ?? []);
+  }
 
-    const changedFields = Object.keys(updateData);
+  const updateData: Prisma.EventUpdateManyMutationInput = {};
 
-    if (changedFields.length === 0) {
-      return event;
-    }
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.summary !== undefined) updateData.summary = data.summary;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.startsAt !== undefined) updateData.startsAt = data.startsAt;
+  if (data.endsAt !== undefined) updateData.endsAt = data.endsAt;
+  if (data.registrationOpensAt !== undefined)
+    updateData.registrationOpensAt = data.registrationOpensAt;
+  if (data.registrationDeadline !== undefined)
+    updateData.registrationDeadline = data.registrationDeadline;
+  if (data.venueName !== undefined) updateData.venueName = data.venueName;
+  if (data.venueAddress !== undefined) updateData.venueAddress = data.venueAddress;
+  if (data.isOnline !== undefined) updateData.isOnline = data.isOnline;
+  if (data.onlineUrl !== undefined) updateData.onlineUrl = data.onlineUrl;
+  if (data.capacity !== undefined) updateData.capacity = data.capacity;
 
-    const result = await tx.event.updateMany({
-      where: { id: event.id, collegeId: event.collegeId, status: event.status },
-      data: updateData,
-    });
+  const changedFields = Object.keys(updateData);
+  if (categoryIds !== null) changedFields.push("categories");
+  if (interestIds !== null) changedFields.push("interests");
 
-    if (result.count !== 1) {
-      throw new DomainError("CONFLICT", "The event changed while it was being edited.", 409);
-    }
+  if (changedFields.length === 0) {
+    return event;
+  }
 
+  const result = await tx.event.updateMany({
+    where: { id: event.id, collegeId: event.collegeId, status: event.status },
+    data: changedFields.some((field) => field !== "categories" && field !== "interests")
+      ? updateData
+      : { updatedAt: new Date() },
+  });
+
+  if (result.count !== 1) {
+    throw new DomainError("CONFLICT", "The event changed while it was being edited.", 409);
+  }
+
+  await replaceEventTaxonomy(tx, event, categoryIds, interestIds);
+
+  if (!options.skipAudit) {
     await writeAuditLog(tx, {
       collegeId: event.collegeId,
       actorUserId: actor.id,
       action: "EVENT_UPDATED",
       entityType: "Event",
       entityId: event.id,
-      metadata: { changedFields },
+      metadata: { ...options.auditMetadata, changedFields },
     });
+  }
 
-    return tx.event.findUniqueOrThrow({ where: { id: event.id } });
-  });
+  return tx.event.findUniqueOrThrow({ where: { id: event.id } });
+}
+
+export async function updateEvent(actor: AuthenticatedActor, input: unknown) {
+  return runInTransaction(prisma, (tx) => updateEventInTransaction(tx, actor, input));
 }
 
 export async function transitionEvent(actor: AuthenticatedActor, input: unknown) {
@@ -383,7 +497,7 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
   const data = parseServiceInput(transitionEventSchema, input);
   assertReasonForTerminalState(data.to, data.reason);
 
-  return runInTransaction(prisma, async (tx) => {
+  const transitioned = await runInTransaction(prisma, async (tx) => {
     const event = await tx.event.findUnique({
       where: { id: data.eventId },
       include: { club: true },
@@ -451,6 +565,7 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
         data: { status: "CANCELLED", cancelledAt: now },
       });
       cancelledRegistrationCount = cancelled.count;
+      await revokeAttendanceCredentialsForEvent(tx, event.id, event.collegeId);
     }
 
     if (data.to === "PUBLISHED") {
@@ -497,6 +612,25 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
       );
     }
 
+    if (data.to === "COMPLETED") {
+      const attendedStudentIds = await getAttendedRegistrationUserIds(
+        tx,
+        event.id,
+        event.collegeId,
+      );
+      await createNotifications(
+        tx,
+        attendedStudentIds.map((userId) => ({
+          collegeId: event.collegeId,
+          userId,
+          type: "FEEDBACK_UPDATE" as const,
+          title: "How was the event?",
+          body: `"${event.title}" is complete. Share your feedback while the 30-day window is open.`,
+          actionUrl: "/student/feedback",
+        })),
+      );
+    }
+
     await writeAuditLog(tx, {
       collegeId: event.collegeId,
       actorUserId: actor.id,
@@ -514,4 +648,22 @@ export async function transitionEvent(actor: AuthenticatedActor, input: unknown)
 
     return tx.event.findUniqueOrThrow({ where: { id: event.id } });
   });
+
+  // Duplicate detection is advisory and runs after the lifecycle transition is
+  // committed. A detection failure must never block a valid submission.
+  if (data.to === "PENDING_APPROVAL") {
+    try {
+      await refreshEventDuplicates(transitioned.id);
+    } catch (error) {
+      console.error("Could not evaluate duplicate suggestions for event", error);
+    }
+  } else if (data.to === "REJECTED" || data.to === "CANCELLED") {
+    try {
+      await clearPendingDuplicatesForEvent(transitioned.id);
+    } catch (error) {
+      console.error("Could not clear stale duplicate suggestions for event", error);
+    }
+  }
+
+  return transitioned;
 }
