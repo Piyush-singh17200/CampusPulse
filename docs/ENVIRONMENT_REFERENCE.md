@@ -1,4 +1,4 @@
-# Prompt 9 — Environment Reference
+# Production Hardening — Environment Reference
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
@@ -132,7 +132,7 @@ Production notes:
   production.
 - For temporary credentials, set `S3_SESSION_TOKEN`; it is included in SigV4
   signing. Do not use root credentials.
-- The adapter is not exercised against a live bucket in Prompt 9. Run the
+- The adapter is not exercised against a live bucket in Production Hardening. Run the
   deployment smoke test before launch.
 
 ## 6. Build and test-only variables
@@ -233,5 +233,5 @@ names in this document first; do not print the environment to a shared log.
 - `src/config/env.ts`
 - `src/server/db/config.ts`
 - `next.config.ts`
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/OPERATIONS_RUNBOOK.md`

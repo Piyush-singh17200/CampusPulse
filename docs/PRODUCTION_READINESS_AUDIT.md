@@ -1,4 +1,4 @@
-# Prompt 9 — Production Readiness Audit
+# Production Hardening — Production Readiness Audit
 
 - **Date:** 18 November 2026
 - **Branch:** `main` at `daaf99dbff3a7b9c443ab94efd662896a16914db`
@@ -28,7 +28,7 @@ operational risks rather than authorization bypasses:
 3. poster storage had no durable production adapter and its directory was
    outside the validated environment contract.
 
-All High and Medium findings were remediated in this prompt. Low findings
+All High and Medium findings were remediated in this release. Low findings
 were either fixed or explicitly accepted with a documented rationale.
 
 | Severity | Found | Resolved | Accepted |
@@ -40,18 +40,18 @@ were either fixed or explicitly accepted with a documented rationale.
 
 ## 2. Baseline verification (before changes)
 
-| Check                            | Result                                          |
-| -------------------------------- | ----------------------------------------------- |
-| Branch / HEAD                    | `main` / `daaf99d`                              |
-| Working tree                     | dirty (Prompt 8 work preserved; no reset)       |
-| Node / npm                       | v24.13.0 / 11.6.2                               |
-| Prisma                           | 7.10.1                                          |
-| TypeScript                       | `npm run typecheck` — pass                      |
-| ESLint                           | `npm run lint` — pass                           |
-| Prisma validate / migrate status | schema valid; 7 migrations; database up to date |
-| Database health                  | `campuspulse` on `localhost:5434` — OK (214 ms) |
-| Unit / integration tests         | 28 files, 215 tests — pass (86.28 s)            |
-| Production dependency audit      | see L-2                                         |
+| Check                            | Result                                            |
+| -------------------------------- | ------------------------------------------------- |
+| Branch / HEAD                    | `main` / `daaf99d`                                |
+| Working tree                     | dirty (Event Operations work preserved; no reset) |
+| Node / npm                       | v24.13.0 / 11.6.2                                 |
+| Prisma                           | 7.10.1                                            |
+| TypeScript                       | `npm run typecheck` — pass                        |
+| ESLint                           | `npm run lint` — pass                             |
+| Prisma validate / migrate status | schema valid; 7 migrations; database up to date   |
+| Database health                  | `campuspulse` on `localhost:5434` — OK (214 ms)   |
+| Unit / integration tests         | 28 files, 215 tests — pass (86.28 s)              |
+| Production dependency audit      | see L-2                                           |
 
 ## 3. Findings
 
@@ -81,7 +81,7 @@ event writes, registration writes, and administrative mutations. Policies
 are enforced at the action/route boundary so service-level tests remain
 deterministic. Limits are keyed by HMAC of the user ID, never the raw ID.
 
-**Status:** Resolved (Phase B). See `docs/PROMPT_9_SECURITY_HARDENING.md`.
+**Status:** Resolved (Phase B). See `docs/SECURITY_HARDENING.md`.
 
 ### H-2 — OCR retries were unbounded and execution had no timeout
 
@@ -110,7 +110,7 @@ practical CPU-exhaustion vector against a single Node.js instance.
 - preserved the existing atomic `PROCESSING` claim so concurrent requests
   cannot run duplicate OCR for the same poster.
 
-**Status:** Resolved (Phase C). See `docs/PROMPT_9_RELIABILITY_REPORT.md`.
+**Status:** Resolved (Phase C). See `docs/RELIABILITY_REPORT.md`.
 
 ### H-3 — Poster storage was local-only with no durable production adapter
 
@@ -253,7 +253,7 @@ peer dependency of `better-auth`.
 imported by the production request path. `npm audit fix --force` would break
 pinned major versions.
 
-**Decision:** accepted for this prompt. Re-evaluate when the upstream
+**Decision:** accepted for this release. Re-evaluate when the upstream
 toolchain publishes compatible releases. No `--force` fix was applied.
 
 **Status:** Accepted (documented).
@@ -268,7 +268,7 @@ configuration.
 
 **Impact:** incident triage depends on the hosting provider's log capture.
 
-**Decision:** accepted for this prompt. The application deliberately avoids
+**Decision:** accepted for this release. The application deliberately avoids
 logging request bodies or identifiers; adding a logging framework is an
 infrastructure decision that requires the hosting provider choice. The
 runbook documents the minimum log retention and alerting expectations.
@@ -313,7 +313,7 @@ on downloads.
   40 MP limit, path-traversal-safe storage keys, no overwrite, authenticated
   delivery with `nosniff`.
 - **Audit:** actor, action, entity, tenant, and redacted metadata; sensitive
-  keys are redacted recursively; export auditing added by this prompt.
+  keys are redacted recursively; export auditing added in this release.
 - **Headers:** CSP with per-request nonce, HSTS in production,
   `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`,
   `Referrer-Policy`, `Permissions-Policy`, COOP/CORP.
@@ -325,22 +325,22 @@ on downloads.
 
 ## 5. Deployment gate
 
-| Gate                                      | Status                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------ |
-| No Critical findings                      | Pass                                                                           |
-| No unresolved High findings               | Pass (after remediation)                                                       |
-| Typecheck / lint / format                 | Pass (see final verification report)                                           |
-| Unit / integration tests                  | Pass (see final verification report)                                           |
-| Production build                          | Pass (see final verification report)                                           |
-| Playwright end-to-end                     | Prompt 9: 5/5; full regression: **9/9** against the production build (1.4 min) |
-| First-tenant bootstrap                    | Pass — guarded CLI verified against `campuspulse_test`                         |
-| Production credentials and hosting choice | **Blocked — not provided**                                                     |
-| Explicit approval to deploy               | **Blocked — not granted**                                                      |
+| Gate                                      | Status                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| No Critical findings                      | Pass                                                                                       |
+| No unresolved High findings               | Pass (after remediation)                                                                   |
+| Typecheck / lint / format                 | Pass (see final verification report)                                                       |
+| Unit / integration tests                  | Pass (see final verification report)                                                       |
+| Production build                          | Pass (see final verification report)                                                       |
+| Playwright end-to-end                     | Production Hardening: 5/5; full regression: **9/9** against the production build (1.4 min) |
+| First-tenant bootstrap                    | Pass — guarded CLI verified against `campuspulse_test`                                     |
+| Production credentials and hosting choice | **Blocked — not provided**                                                                 |
+| Explicit approval to deploy               | **Blocked — not granted**                                                                  |
 
 The full Playwright suite is green in one clean run against the production
 build (9/9 in 1.4 min). That run also found and closed a production-only CSP
 attribute-hash gap for `next/image`. See
-`docs/PROMPT_9_VERIFICATION_REPORT.md`.
+`docs/PRODUCTION_VERIFICATION_REPORT.md`.
 
 Deployment remains intentionally pending. This audit does not authorise a
 deployment.
@@ -350,7 +350,7 @@ deployment.
 1. **Object storage was not exercised against a live bucket.** The S3 adapter
    is covered by signing/request-construction unit tests and configuration
    validation, but no credentials were available for an integration test.
-   Run the verification steps in `docs/PROMPT_9_DEPLOYMENT_GUIDE.md` before
+   Run the verification steps in `docs/DEPLOYMENT_GUIDE.md` before
    trusting production uploads.
 2. **Email delivery was not exercised against a live SMTP server.** The
    existing development fallback and production guard were reviewed; SMTP
@@ -373,18 +373,18 @@ tenant creation, and the production database starts empty. A confirmation-gated
 duplicate slug or domain, and creates only the college — no user, password, or
 default administrator. It was verified against `campuspulse_test` (create,
 duplicate refusal, cleanup). The full sequence is in
-`docs/PROMPT_9_DEPLOYMENT_GUIDE.md`.
+`docs/DEPLOYMENT_GUIDE.md`.
 
 ## 8. Evidence index
 
 - Baseline test log: `.data/baseline-test.log` (28 files / 215 tests).
-- Security hardening details: `docs/PROMPT_9_SECURITY_HARDENING.md`.
-- Reliability details: `docs/PROMPT_9_RELIABILITY_REPORT.md`.
-- Performance measurements: `docs/PROMPT_9_PERFORMANCE_REPORT.md`.
-- Accessibility review: `docs/PROMPT_9_ACCESSIBILITY_REPORT.md`.
-- Production architecture: `docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md`.
-- Deployment procedure: `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`.
-- Environment reference: `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md`.
-- Backup and recovery: `docs/PROMPT_9_BACKUP_AND_RECOVERY.md`.
-- Operations runbook: `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`.
-- Final verification: `docs/PROMPT_9_VERIFICATION_REPORT.md`.
+- Security hardening details: `docs/SECURITY_HARDENING.md`.
+- Reliability details: `docs/RELIABILITY_REPORT.md`.
+- Performance measurements: `docs/PERFORMANCE_REPORT.md`.
+- Accessibility review: `docs/ACCESSIBILITY_REPORT.md`.
+- Production architecture: `docs/PRODUCTION_ARCHITECTURE.md`.
+- Deployment procedure: `docs/DEPLOYMENT_GUIDE.md`.
+- Environment reference: `docs/ENVIRONMENT_REFERENCE.md`.
+- Backup and recovery: `docs/BACKUP_AND_RECOVERY.md`.
+- Operations runbook: `docs/OPERATIONS_RUNBOOK.md`.
+- Final verification: `docs/PRODUCTION_VERIFICATION_REPORT.md`.

@@ -8,7 +8,7 @@ const CLUB_ADMIN_EMAIL = "robotics.president@campuspulse.example";
 const STUDENT_EMAIL = "isha.rao@campuspulse.example";
 const COLLEGE_ADMIN_EMAIL = "northfield.admin@campuspulse.example";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "prompt-7");
+const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "intelligence");
 
 function localDateTime(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -106,10 +106,10 @@ async function createDraft(
 ): Promise<{ eventId: string; clubId: string }> {
   await page.goto("/club/events/create");
   await page.getByLabel("Event title").fill(input.title);
-  await page.getByLabel("Short summary").fill(`Prompt 7 workflow for ${input.title}.`);
+  await page.getByLabel("Short summary").fill(`Automated workflow for ${input.title}.`);
   await page
     .getByLabel("Full description")
-    .fill("A deterministic event created by the Prompt 7 browser workflow.");
+    .fill("A deterministic event created by the automated browser workflow.");
   await page.getByLabel("Starts at").fill(localDateTime(input.startsAt));
   await page.getByLabel("Ends at").fill(localDateTime(input.endsAt));
   await page.getByLabel("Registration opens").fill(localDateTime(input.registrationOpensAt));
@@ -122,11 +122,11 @@ async function createDraft(
 
   if (input.poster) {
     await page.locator('input[name="poster"]').setInputFiles({
-      name: "prompt-7-ocr-poster.png",
+      name: "ocr-poster.png",
       mimeType: "image/png",
       buffer: input.poster,
     });
-    await page.getByLabel("Poster alt text").fill(input.posterAlt ?? "Prompt 7 OCR poster");
+    await page.getByLabel("Poster alt text").fill(input.posterAlt ?? "OCR poster");
     await expect(page.getByAltText("Selected poster preview")).toBeVisible();
   }
 
@@ -154,7 +154,7 @@ async function approveEvent(page: Page, eventId: string): Promise<void> {
   await expect(page.getByText("Published", { exact: true }).first()).toBeVisible();
 }
 
-test("Prompt 7 OCR review, recommendations, duplicate review, conflicts, and responsive layouts", async ({
+test("OCR review, recommendations, duplicate review, conflicts, and responsive layouts", async ({
   page,
   browser,
 }) => {
@@ -174,9 +174,9 @@ test("Prompt 7 OCR review, recommendations, duplicate review, conflicts, and res
   });
 
   const stamp = Date.now();
-  const title1 = `Prompt 7 OCR Robotics ${stamp}`;
+  const title1 = `OCR Robotics ${stamp}`;
   const title2 = `${title1} Session`;
-  const title3 = `Prompt 7 Technology Mixer ${stamp}`;
+  const title3 = `Technology Mixer ${stamp}`;
   // Vary the date across runs so an earlier workflow run's published events do
   // not become legitimate same-day duplicate candidates for this run.
   const startsAt = new Date(Date.now() + (60 + (stamp % 250)) * 24 * 60 * 60 * 1000);
@@ -205,7 +205,7 @@ test("Prompt 7 OCR review, recommendations, duplicate review, conflicts, and res
       category: "Academic",
       interest: "Technology",
       poster: posterBytes,
-      posterAlt: "Prompt 7 OCR robotics poster",
+      posterAlt: "OCR robotics poster",
     });
 
     // OCR review and an explicitly edited accepted value.

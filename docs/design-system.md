@@ -2,7 +2,7 @@
 
 Status: the landing page and its reusable primitives are implemented. The
 dashboard screens described in `docs/future-screens.md` are specifications only
-and are **not** implemented in Prompt 3.1.
+and are **not** implemented in Domain Services.
 
 ## 1. Brand direction
 

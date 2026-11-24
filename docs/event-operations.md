@@ -1,13 +1,13 @@
 # Event operations
 
 This document is the operational reference for the event lifecycle, poster
-management, notifications, audit, registration interactions, the Prompt 7
-event-intelligence features, and the Prompt 8 attendance, feedback, and export
+management, notifications, audit, registration interactions, the Event Intelligence
+event-intelligence features, and the Event attendance, feedback, and export
 surfaces. It describes the behavior implemented in the repository; it is not a
 claim that every future operational feature exists. See
 `docs/event-intelligence.md` for OCR, recommendation, duplicate-threshold, and
 schedule-conflict details, and `docs/attendance-feedback-analytics.md` for the
-Prompt 8 routes, analytics formulas, and CSV/ICS formats.
+Event Operations routes, analytics formulas, and CSV/ICS formats.
 
 ## 1. Roles and ownership
 
@@ -355,16 +355,16 @@ Before publishing or changing a poster, verify:
 
 ## 11. Verification and limitations
 
-Prompt 6 tests cover lifecycle integration, poster validation, replacement and
+Event Posters tests cover lifecycle integration, poster validation, replacement and
 removal, storage failure, access control, capacity/deadline enforcement,
 duplicate/concurrent registration, notification scoping, audit correctness, and
-cross-tenant authorization. Prompt 7 adds service tests for deterministic OCR
+cross-tenant authorization. Event Intelligence adds service tests for deterministic OCR
 extraction, OCR processing/claim/apply/failure, recommendations, duplicate
-scoring/review, and schedule conflicts. The Prompt 6 Playwright workflow covers
+scoring/review, and schedule conflicts. The Event Posters Playwright workflow covers
 create → preview → submit → approve → student view → register → club view →
 cancel → replace → access-control checks → remove → responsive screenshots.
-The Prompt 7 Playwright workflow covers OCR review, recommendations, duplicate
-review, schedule warnings, and responsive layouts. Prompt 8 adds 26 service/
+The Event Intelligence Playwright workflow covers OCR review, recommendations, duplicate
+review, schedule warnings, and responsive layouts. Event Operations adds 26 service/
 integration tests for attendance, feedback, ICS, CSV, analytics, and
 notifications, plus a Playwright workflow covering QR/manual attendance,
 feedback submission and moderation, all ICS/CSV scopes, analytics, notification

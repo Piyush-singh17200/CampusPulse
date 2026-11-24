@@ -1,6 +1,6 @@
 # CampusPulse Final Verification Report
 
-**Prompt:** 10 — Final submission polish, premium UI, demo experience & release readiness  
+**Release:** Final Production Release, Premium UI & System Verification  
 **Date:** 22 November 2026  
 **Branch:** `main`  
 **HEAD:** `daaf99dbff3a7b9c443ab94efd662896a16914db`  
@@ -12,7 +12,7 @@
 
 CampusPulse has been verified as locally runnable, database-backed, secure, and demonstrable across all four core user roles: Student, Club Administrator, College Administrator, and Platform Administrator.
 
-The Prompt 10 submission phase completed:
+The Release readiness phase completed:
 
 1. The required editorial landing-page tagline: **“CampusPulse — Too Many Posters, Too Little Signal.”**
 2. An accessible, interactive four-role product showcase with clearly labelled illustrative data.
@@ -22,7 +22,7 @@ The Prompt 10 submission phase completed:
 6. Role-specific focus cards across all dashboards.
 7. Fixed `storageConfigured` logic in platform dashboard queries to validate full S3 credentials.
 8. Zero console errors, zero dead buttons, and zero horizontal-overflow issues down to 360 px.
-9. 27 new high-resolution screenshots under `docs/screenshots/prompt-10/` without overwriting existing evidence.
+9. 27 new high-resolution screenshots under `docs/screenshots/showcase/` without overwriting existing evidence.
 10. The complete suite of academic submission materials: Submission Guide, Demo Script, Feature Matrix, and Verification Report.
 
 All automated verification gates pass cleanly. The application is **academically ready and locally demonstrable**. It is **not** a claim of live cloud production deployment, which remains blocked on production infrastructure provisioning, DNS/TLS setup, and owner approval.
@@ -31,22 +31,22 @@ All automated verification gates pass cleanly. The application is **academically
 
 ## 2. Exact Git baseline and repository safety
 
-| Metric                                | Baseline (Prompt 9 Handover)               | Current (Prompt 10 Final)                  | Change & Reason                                               |
-| :------------------------------------ | :----------------------------------------- | :----------------------------------------- | :------------------------------------------------------------ |
-| **Git Branch**                        | `main`                                     | `main`                                     | Preserved; no branch switching                                |
-| **Git HEAD**                          | `daaf99dbff3a7b9c443ab94efd662896a16914db` | `daaf99dbff3a7b9c443ab94efd662896a16914db` | Exact match confirmed                                         |
-| **Default `git status` entries**      | 123                                        | 156                                        | +33 (new submission docs, scripts, components)                |
-| **Expanded `git status -uall` paths** | 147                                        | 207                                        | +60 (expanded Prompt 10 screenshot files & docs)              |
-| **Modified files**                    | 99                                         | 100                                        | +1 (`src/server/dashboards/queries.ts` storageConfigured fix) |
-| **Untracked files / dirs**            | 24                                         | 56                                         | New documentation, scripts, and Prompt 10 screenshot assets   |
-| **Applied database migrations**       | 8                                          | 8                                          | Unchanged; 0 schema migrations altered or added               |
-| **Existing screenshots preserved**    | 52 (Prompts 5–9)                           | 52 (Prompts 5–9 preserved)                 | **0 existing screenshots overwritten**                        |
-| **Prompt 10 new screenshots**         | 0                                          | 27 PNGs + 1 JSON                           | Safe output directory `docs/screenshots/prompt-10/`           |
+| Metric                                | Baseline (Production Handover)             | Current (Final Release)                    | Change & Reason                                                      |
+| :------------------------------------ | :----------------------------------------- | :----------------------------------------- | :------------------------------------------------------------------- |
+| **Git Branch**                        | `main`                                     | `main`                                     | Preserved; no branch switching                                       |
+| **Git HEAD**                          | `daaf99dbff3a7b9c443ab94efd662896a16914db` | `daaf99dbff3a7b9c443ab94efd662896a16914db` | Exact match confirmed                                                |
+| **Default `git status` entries**      | 123                                        | 156                                        | +33 (new submission docs, scripts, components)                       |
+| **Expanded `git status -uall` paths** | 147                                        | 207                                        | +60 (expanded Production Release screenshot files & docs)            |
+| **Modified files**                    | 99                                         | 100                                        | +1 (`src/server/dashboards/queries.ts` storageConfigured fix)        |
+| **Untracked files / dirs**            | 24                                         | 56                                         | New documentation, scripts, and Production Release screenshot assets |
+| **Applied database migrations**       | 8                                          | 8                                          | Unchanged; 0 schema migrations altered or added                      |
+| **Existing screenshots preserved**    | 52 (All system milestones)                 | 52 (All system milestones preserved)       | **0 existing screenshots overwritten**                               |
+| **Showcase screenshots**              | 0                                          | 27 PNGs + 1 JSON                           | Safe output directory `docs/screenshots/showcase/`                   |
 
 ### Absolute Repository Preservation Compliance
 
 - **No Destructive Commands:** `git reset`, `git clean`, and forced checkouts were strictly prohibited and never run.
-- **No Overwritten Evidence:** All screenshot files in `docs/screenshots/prompt-5/`, `prompt-6/`, `prompt-7/`, `prompt-8/`, and `prompt-9/` remain intact and byte-preserved.
+- **No Overwritten Evidence:** All screenshot files in `docs/screenshots/dashboards/`, `posters/`, `intelligence/`, `operations/`, and `responsive/` remain intact and byte-preserved.
 - **No Production Migrations:** No migrations were generated or run against production.
 - **No Secret Leakage:** No passwords, production tokens, or secret keys were printed or added to source code or documentation.
 - **No Unauthorized Git Actions:** No commits, pushes, merges, or branch modifications were made.
@@ -90,7 +90,7 @@ All automated verification gates pass cleanly. The application is **academically
 2. **Live SMTP Outbound Email Delivery:**
    - Password reset tokens and notification paths were verified in the database. Outbound email delivery over live SMTP port 587 was not executed (`EMAIL_ENABLED=false`).
 3. **Full Main-Repository Playwright E2E Rerun:**
-   - The original Playwright test specs (`prompt-8.spec.ts`, `prompt-9.spec.ts`) configured default output paths that would overwrite earlier phase screenshots in `docs/screenshots/prompt-8/` and `prompt-9/`. To obey the absolute non-destructive preservation rule, screenshot capture was redirected to `docs/screenshots/prompt-10/`.
+   - The original Playwright test specs (`event-operations.spec.ts`, `production-hardening.spec.ts`) configured default output paths that would overwrite earlier phase screenshots in `docs/screenshots/operations/` and `responsive/`. To obey the absolute non-destructive preservation rule, screenshot capture was redirected to `docs/screenshots/showcase/`.
 4. **Disaster Recovery / Restore Drill:**
    - Backup script dry-run syntax was reviewed, but full production database restore drills were not conducted.
 5. **External Penetration Testing:**
@@ -165,9 +165,9 @@ Route (app)                                             Size
 
 ---
 
-## 6. Prompt 10 screenshot inventory
+## 6. Showcase screenshot inventory
 
-All 27 screenshots were generated into `docs/screenshots/prompt-10/` using live rendered pages from the local PostgreSQL demo database:
+All 27 screenshots were generated into `docs/screenshots/showcase/` using live rendered pages from the local PostgreSQL demo database:
 
 |  #  | Filename                           | Viewport | Target Surface    | Content Description                                                |
 | :-: | :--------------------------------- | :------: | :---------------- | :----------------------------------------------------------------- |

@@ -1,13 +1,13 @@
-# Focused security review — Prompt 4
+# Focused security review — Authentication & RBAC
 
 Scope: the database access layer, tenant helpers, event lifecycle, registration
 integrity, club/role administration, audit logging, authentication, sessions,
 password recovery, RBAC, CSRF/origin checks, PostgreSQL-backed rate limiting,
-test-database safety, seed safety, and the landing/auth UI surface. The Prompt 5
-addendum covers the dashboard and saved-event surface. The Prompt 6 addendum
+test-database safety, seed safety, and the landing/auth UI surface. The Role Dashboards
+addendum covers the dashboard and saved-event surface. The Event Posters addendum
 covers authenticated poster upload/delivery and transactional notifications.
-The Prompt 7 addendum covers local OCR, recommendations, duplicate review, and
-schedule-conflict warnings. The Prompt 8 addendum covers QR attendance, feedback,
+The Event Intelligence addendum covers local OCR, recommendations, duplicate review, and
+schedule-conflict warnings. The operations addendum covers QR attendance, feedback,
 calendar/CSV downloads, analytics, and notification preferences. Public business
 APIs, live object-storage verification, and production deployment remain out of
 scope.
@@ -16,21 +16,21 @@ Review date: 2026-11-09.
 
 ## Result summary
 
-| Severity      | Findings                                | Status                             |
-| ------------- | --------------------------------------- | ---------------------------------- |
-| Critical      | 0                                       | None found                         |
-| High          | 0 within the implemented Prompt 4 scope | None found                         |
-| Medium        | 3                                       | Documented/accepted for this phase |
-| Low           | 4                                       | Documented                         |
-| Informational | 7                                       | Controls verified                  |
+| Severity      | Findings                                             | Status                             |
+| ------------- | ---------------------------------------------------- | ---------------------------------- |
+| Critical      | 0                                                    | None found                         |
+| High          | 0 within the implemented Authentication & RBAC scope | None found                         |
+| Medium        | 3                                                    | Documented/accepted for this phase |
+| Low           | 4                                                    | Documented                         |
+| Informational | 7                                                    | Controls verified                  |
 
 **No Critical or High finding remains unresolved within the implemented scope.**
 This is **not** a production-readiness claim: PostgreSQL RLS, production SMTP,
 deployment hardening, and a penetration test remain later work.
 
-## Prompt 5 addendum
+## Role Dashboards addendum
 
-Prompt 5 adds the four role dashboards and persistent saved events. The controls
+Role Dashboards adds the four role dashboards and persistent saved events. The controls
 reviewed for this addition are:
 
 - Dashboard data access is server-only and every query accepts the trusted
@@ -56,9 +56,9 @@ Residual risks remain the same as the findings below: no PostgreSQL RLS, no
 production notification/SMTP delivery, no penetration test, and application-level
 audit immutability. See `docs/dashboards.md` for the route and action map.
 
-## Prompt 6 addendum
+## Event Posters addendum
 
-Prompt 6 adds authenticated event-poster management, poster delivery, and
+Event Posters adds authenticated event-poster management, poster delivery, and
 transactional in-app notifications. Addendum date: 2026-11-11.
 
 ### Controls reviewed
@@ -106,12 +106,12 @@ transactional in-app notifications. Addendum date: 2026-11-11.
   and `data:` for local previews; `'unsafe-inline'` is not enabled. Poster bytes
   are delivered from the same origin through the authenticated route.
 
-### Prompt 6 result
+### Event Posters result
 
 | Area                       | Result                                                              |
 | -------------------------- | ------------------------------------------------------------------- |
-| Critical findings          | 0 in the implemented Prompt 6 scope                                 |
-| High findings              | 0 in the implemented Prompt 6 scope                                 |
+| Critical findings          | 0 in the implemented Event Posters scope                            |
+| High findings              | 0 in the implemented Event Posters scope                            |
 | Medium findings            | 0 new code vulnerabilities found                                    |
 | Residual operational risks | Local storage, no malware scan, no OCR/email                        |
 | Automated coverage         | Unit/integration poster and notification tests; Playwright workflow |
@@ -126,7 +126,7 @@ are in-app only. PostgreSQL RLS and a penetration test remain future work. See
 
 ### SEC-M1 — PostgreSQL RLS is not implemented
 
-**Severity:** Medium (production hardening; accepted for Prompt 4)\
+**Severity:** Medium (production hardening; accepted for Authentication & RBAC)\
 **Evidence:** `docs/database.md`; no `ROW LEVEL SECURITY` policies in migrations.\
 **Impact:** Tenant isolation relies on service-layer scoping plus composite
 tenant foreign keys. A direct database connection, a compromised application
@@ -263,9 +263,9 @@ Critical/High issue for the current phase.
     test database, and remote hosts; fictional local-only data and idempotent
     upserts.
 
-## Prompt 7 addendum
+## Event Intelligence addendum
 
-Prompt 7 adds local poster OCR, deterministic recommendations, advisory
+Event Intelligence adds local poster OCR, deterministic recommendations, advisory
 duplicate review, and schedule-conflict warnings. Addendum date: 2026-11-13.
 
 ### Controls reviewed
@@ -315,11 +315,11 @@ duplicate review, and schedule-conflict warnings. Addendum date: 2026-11-13.
   positives.
 - Duplicate and schedule warnings are advisory and do not enforce operational
   policy.
-- No new secret or external API credential is introduced by Prompt 7.
+- No new secret or external API credential is introduced by Event Intelligence.
 
-## Prompt 8 addendum
+## operations addendum
 
-Prompt 8 adds QR attendance, student/club/college feedback, authenticated ICS
+Event Operations adds QR attendance, student/club/college feedback, authenticated ICS
 and CSV downloads, engagement analytics, and in-app notification preferences.
 Addendum date: 2026-11-18.
 
@@ -367,20 +367,20 @@ Addendum date: 2026-11-18.
 - **Error disclosure.** Attendance, feedback, and notification error boundaries
   log only a digest and render a generic message; raw server errors are not
   shown to the browser.
-- **Authorization tests.** Prompt 8 tests cover unauthenticated downloads,
+- **Authorization tests.** Event Operations tests cover unauthenticated downloads,
   cross-tenant/cross-club access, expired/used/revoked credentials, wrong-event
   codes, feedback eligibility and moderation, CSV formula protection, ICS
   scoping, analytics filters, and preference suppression.
 
-### Prompt 8 result
+### Event Operations result
 
-| Area                       | Result                                                                |
-| -------------------------- | --------------------------------------------------------------------- |
-| Critical findings          | 0 in the implemented Prompt 8 scope                                   |
-| High findings              | 0 in the implemented Prompt 8 scope                                   |
-| Medium findings            | 0 new code vulnerabilities found                                      |
-| Residual operational risks | Shared QR tokens, browser camera support, synchronous exports, no RLS |
-| Automated coverage         | 26 Prompt 8 service/integration tests plus Playwright workflow        |
+| Area                       | Result                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- |
+| Critical findings          | 0 in the implemented Event Operations scope                            |
+| High findings              | 0 in the implemented Event Operations scope                            |
+| Medium findings            | 0 new code vulnerabilities found                                       |
+| Residual operational risks | Shared QR tokens, browser camera support, synchronous exports, no RLS  |
+| Automated coverage         | 26 Event Operations service/integration tests plus Playwright workflow |
 
 Residual risks: attendance is a check-in record rather than identity proof, so a
 student can share a QR/token; camera scanning depends on `BarcodeDetector` with a
@@ -414,13 +414,13 @@ remain future work.
 
 ## Conclusion
 
-No Critical/High issue was found in the implemented Prompt 4 scope. The Medium
+No Critical/High issue was found in the implemented Authentication & RBAC scope. The Medium
 items are an explicitly deferred production-hardening item (RLS), a
 development-only transitive advisory, and missing production SMTP configuration.
-Prompt 6 found no new Critical/High code issue in the poster and notification
-surface. Prompt 7 found no new Critical/High code issue in the OCR,
+Event Posters found no new Critical/High code issue in the poster and notification
+surface. Event Intelligence found no new Critical/High code issue in the OCR,
 recommendation, duplicate-review, or conflict-warning surface; residual risks are
-the documented advisory/accuracy limitations. Prompt 8 found no new
+the documented advisory/accuracy limitations. Event Operations found no new
 Critical/High code issue in the attendance, feedback, download, analytics, or
 notification-preference surface; residual risks are the documented shared-token,
 browser-support, one-way-calendar, and synchronous-export limitations.

@@ -1,4 +1,4 @@
--- Prompt 5: persistent student saved events and dashboard audit actions.
+-- Persistent student saved events and dashboard audit actions.
 -- Additive only: existing tables, columns, and constraints are unchanged.
 
 ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'USER_STATUS_CHANGED';

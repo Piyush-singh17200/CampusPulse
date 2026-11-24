@@ -1,6 +1,6 @@
 # Event intelligence
 
-This document describes the Prompt 7 features: local poster OCR, student
+This document describes the Event Intelligence features: local poster OCR, student
 recommendations, advisory duplicate review, and schedule-conflict warnings. All
 four features are implemented against the existing PostgreSQL data model and
 authorization rules. No paid AI, external LLM, recommendation service, or
@@ -232,7 +232,7 @@ hard overlap claim.
 
 ## 5. Data model and migration
 
-Prompt 7 adds:
+Event Intelligence adds:
 
 - enums `PosterOcrFieldName`, `PosterOcrExtractionStatus`,
   `PosterOcrReviewStatus`;
@@ -245,7 +245,7 @@ Prompt 7 adds:
 - `EventDuplicate.reasons` and duplicate status indexes.
 
 Migration:
-`prisma/migrations/20261113000000_prompt7_event_intelligence/migration.sql`.
+`prisma/migrations/20261113000000_event_intelligence/migration.sql`.
 
 Apply it with:
 
@@ -274,7 +274,7 @@ pool or reused worker process.
 
 ## 7. Tests
 
-Prompt 7 adds focused service tests:
+Event Intelligence adds focused service tests:
 
 - `tests/services/ocr-extract.test.ts` — deterministic extraction, confidence,
   ambiguous dates/times, missing fields;
@@ -289,9 +289,9 @@ Prompt 7 adds focused service tests:
   events, incomplete intervals, pre-registration lookup, registration
   revalidation and audit metadata.
 
-Prompt 7 also adds `tests/e2e/prompt-7.spec.ts`, covering the browser workflow
-and responsive screenshots. Prompt 8 extends the suite to 28 Vitest files / 215
-tests and adds the Prompt 8 Playwright workflow.
+Event Intelligence also adds `tests/e2e/event-intelligence.spec.ts`, covering the browser workflow
+and responsive screenshots. Event Operations extends the suite to 28 Vitest files / 215
+tests and adds the Event operations Playwright workflow.
 
 Run:
 

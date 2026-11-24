@@ -136,10 +136,10 @@ The PostgreSQL database consists of **27 models** and **15 domain enums** manage
 2. `20261105045947_audit_event_actions` — Extended audit actions for event management.
 3. `20261109081554_auth_sessions_rbac` — Better Auth database sessions, password reset tokens, rate limits, and auth audit events.
 4. `20261110000000_dashboard_saved_events` — Student saved events model and saved event audit actions.
-5. `20261111000000_prompt6_poster_audit` — Event posters model, content signatures, and poster lifecycle audit actions.
-6. `20261113000000_prompt7_event_intelligence` — Poster OCR fields, duplicate event matches, and recommendation indexes.
-7. `20261115000000_prompt8_event_operations` — Attendance credentials, feedback reviews, and notification preferences.
-8. `20261118111909_prompt9_export_audit` — Sensitive export audit actions and download tracking.
+5. `20261111000000_poster_audit` — Event posters model, content signatures, and poster lifecycle audit actions.
+6. `20261113000000_event_intelligence` — Poster OCR fields, duplicate event matches, and recommendation indexes.
+7. `20261115000000_event_operations` — Attendance credentials, feedback reviews, and notification preferences.
+8. `20261118111909_export_audit` — Sensitive export audit actions and download tracking.
 
 ### 4.2 Composite Foreign Key Tenant Isolation
 

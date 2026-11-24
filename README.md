@@ -6,20 +6,20 @@ surface, a multi-tenant PostgreSQL schema, database-backed sessions, server-side
 RBAC/tenant authorization, integration tests, and a safe fictional development
 seed.
 
-Prompt 5 is implemented through four role-specific dashboards backed by real
-PostgreSQL data. Prompt 6 adds event operations: poster upload/replacement/
+Role dashboards are implemented through four role-specific dashboards backed by real
+PostgreSQL data. Event Posters adds event operations: poster upload/replacement/
 removal with a server-only local storage adapter, authenticated poster delivery,
 transactional in-app notifications for moderation and registration events, and
-poster/lifecycle audit coverage. Prompt 7 adds local Tesseract.js poster OCR with
+poster/lifecycle audit coverage. Event Intelligence adds local Tesseract.js poster OCR with
 human review, deterministic student recommendations, advisory same-college
 duplicate review, and advisory schedule-conflict warnings with server-side
-revalidation. Prompt 8 connects QR attendance, post-event feedback, calendar
+revalidation. Event Operations connects QR attendance, post-event feedback, calendar
 downloads, engagement analytics, notification preferences, and authorized CSV
-exports to the role dashboards. Prompt 9 hardens the existing system for
+exports to the role dashboards. Production Hardening hardens the existing system for
 production: per-user rate limits, export audit rows, bounded OCR, a health
 endpoint, an S3-compatible poster storage adapter, validated environment
 configuration, accessibility fixes, and deployment/operations documentation.
-Prompt 10 completes the submission pass: the required “CampusPulse — Too Many
+Production Release completes the submission pass: the required “CampusPulse — Too Many
 Posters, Too Little Signal.” landing message, an accessible four-role product
 preview, grouped dashboard navigation, editorial metric cards, stronger role
 focus panels, a designed poster fallback, responsive fixes down to 360 px, new
@@ -42,9 +42,9 @@ Implemented and verified in this phase:
   timestamps, and deliberate deletion behavior.
 - Eight applied migrations: the initial schema, the event audit enum extension,
   the additive auth/session/RBAC migration, the additive dashboard
-  saved-event/audit migration, the Prompt 6 poster audit enum migration, the
-  Prompt 7 event-intelligence migration, the Prompt 8 attendance/feedback/
-  notification-preference migration, and the Prompt 9 export-download audit
+  saved-event/audit migration, the Poster audit enum migration, the
+  Event intelligence migration, the Event attendance/feedback/
+  notification-preference migration, and the Export-download audit
   enum migration.
 - Central database configuration, pooling, hot-reload singleton, health check,
   test-database guards, tenant helpers, domain errors, transaction retries, and
@@ -112,41 +112,41 @@ Implemented and verified in this phase:
   safe deep links, read state, and database-backed in-app preferences for
   registration, attendance, and feedback categories.
 - Isolated Vitest integration suite against `campuspulse_test` with 235 passing
-  tests across 31 files, including Prompt 8 attendance, feedback, ICS, CSV,
-  analytics, notifications, poster validation/storage/access/cleanup, Prompt 9
+  tests across 31 files, including Event attendance, feedback, ICS, CSV,
+  analytics, notifications, poster validation/storage/access/cleanup, Production Hardening
   rate limits, export audit, OCR timeout/cooldown, health payload safety, and
   SigV4 signing, notification scoping, concurrency, tenant, lifecycle, auth,
   session, reset, rate-limit, CSRF, RBAC, dashboard authorization, filtering,
   pagination, audit, and security tests.
 - Playwright workflow coverage for create → preview → submit → approve → student
   view → register → club registration list → cancel → replace poster →
-  access-control checks → remove → responsive screenshots, plus Prompt 7 OCR,
+  access-control checks → remove → responsive screenshots, plus OCR,
   recommendations, duplicate review, and conflict warnings.
-- Prompt 8 Playwright workflow covers attendance QR/manual check-in, feedback
+- Event operations Playwright workflow covers attendance QR/manual check-in, feedback
   submission and moderation, single/registered/saved ICS downloads, all four
   CSV exports, club/college/platform analytics, notification filters and
   preferences, and 390 px attendance/notification layouts.
-- Prompt 9 Playwright workflow covers health/readiness, security headers,
+- Production hardening Playwright workflow covers health/readiness, security headers,
   unauthenticated export/calendar/poster `401`s, export rate limiting and
   audit, skip navigation, labeled login inputs, and 375/768/1440 px responsive
   layouts.
-- Prompt 10 landing page with the required headline, interactive
+- Landing page with the required headline, interactive
   Student/Club/College/Platform preview, real CTAs, and clearly labelled
   illustrative data.
-- Prompt 10 dashboard polish: grouped navigation, desktop breadcrumbs, mobile
+- Dashboard polish: grouped navigation, desktop breadcrumbs, mobile
   focus management, editorial metric cards, role-specific focus panels,
   notification/interest/schedule surfaces, and a designed poster-pending
   fallback.
-- Prompt 10 responsive evidence: 27 screenshots and a 50-route audit at 360,
+- Responsive layout evidence: 27 screenshots and a 50-route audit at 360,
   390, 768, 1024, 1280, and 1440 px, with 0 console errors, 0 non-success
   routes, and 0 horizontal-overflow failures.
-- Prompt 10 submission documents: feature matrix, submission guide, demo
+- Release documentation: feature matrix, submission guide, demo
   script, and final verification report.
 - Idempotent, fictional, development-only seed with curated demo
   notifications and predictable college-local event times.
 - Design-system, database, authentication, dashboard, event-operations,
   event-intelligence, attendance-feedback-analytics, poster-storage, security,
-  future-screen, and Prompt 9 production-readiness docs (audit, security,
+  future-screen, and Production-readiness docs (audit, security,
   reliability, performance, accessibility, architecture, deployment,
   environment, backup/recovery, operations, and final verification).
 
@@ -233,7 +233,7 @@ so sign in again afterward. See `docs/authentication.md`.
 
 ### Prepared local demo accounts
 
-The prepared local demo database used for the Prompt 10 screenshots has four
+The prepared local demo database used for the Showcase screenshots has four
 credentialed accounts. All use the local-only password `CampusPulse!2026`:
 
 | Role                   | Email                                    |
@@ -406,7 +406,7 @@ relationships and cross-college FK rejection, registration success/duplicates/
 deadlines/capacity/cancellation, event lifecycle and audit, poster content
 validation, poster storage keys/path traversal, poster upload/replacement/
 removal/access control/storage failure/cleanup, notification scoping and retry
-guards, Prompt 8 QR attendance and corrections, feedback submission/moderation,
+guards, QR attendance and corrections, feedback submission/moderation,
 ICS escaping and download scopes, CSV BOM/CRLF/formula protection, analytics
 aggregates and filters, notification preferences/read state, club/role
 administration, audit redaction/rollback, security boundaries, concurrent
@@ -414,7 +414,7 @@ capacity/duplicate races, student registration, Argon2id hashes, Better Auth
 sessions, logout/expiry/deleted sessions, disabled accounts, reset-token
 hashing, expiry/single use/session revocation, PostgreSQL rate limits,
 CSRF/origin checks, RBAC helpers, role-change session revocation, CLI
-super-admin bootstrap, Prompt 9 rate limits, export audit, OCR timeouts, health
+super-admin bootstrap, Production rate limits, export audit, OCR timeouts, health
 payload safety, and SigV4 signing. Tests run sequentially
 (`fileParallelism: false`, `maxWorkers: 1`) so database resets are
 deterministic. The current suite has 31 test files and 235 passing tests.
@@ -431,8 +431,8 @@ development server. Do not run it against a stale production `next start`
 process. The workflow uses the seeded demo accounts and creates a new test event
 in the **development** database; it does not reset or truncate the database.
 Clear `rate_limit_entries` or wait for the login window if repeated runs hit
-“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`,
-`docs/screenshots/prompt-7/`, and `docs/screenshots/prompt-8/`.
+“Too many attempts.” Screenshots are written to `docs/screenshots/posters/`,
+`docs/screenshots/intelligence/`, and `docs/screenshots/operations/`.
 
 ## Development and production commands
 
@@ -495,7 +495,7 @@ tests/
   auth/                         auth, session, reset, rate-limit, CSRF, RBAC tests
   dashboards/                   dashboard access, scoping, filtering, pagination
   db/                           client and tenant relationship tests
-  e2e/                          Playwright lifecycle and Prompt 8 operation workflows
+  e2e/                          Playwright lifecycle and Operation workflows
   services/                     lifecycle, registration, poster, attendance, feedback,
                                 analytics, notification, and security tests
 docs/
@@ -509,8 +509,8 @@ docs/
                                 QR attendance, feedback, ICS/CSV, analytics
   future-screens.md             screen specifications and implemented status
   poster-storage.md             poster storage, validation, delivery, caveats
-  security-review.md            security review with Prompt 8 addendum
-  PROMPT_9_*.md                 readiness audit, security, reliability,
+  security-review.md            security review with operations addendum
+  production-hardening docs                 readiness audit, security, reliability,
                                 performance, accessibility, architecture,
                                 deployment, environment, backup/recovery,
                                 operations, and final verification
@@ -624,7 +624,7 @@ exposed as public business APIs in this phase.
   trusted actor, re-checks authorization, scopes by college/club, and returns real
   database rows, counts, filters, and pagination.
 - `src/server/dashboards/engagement-analytics.ts` and `feedback.ts` contain the
-  server-only Prompt 8 attendance, analytics, notification, and feedback read
+  server-only Event attendance, analytics, notification, and feedback read
   models. `src/lib/analytics-query.ts` parses and normalizes filter input.
 - `src/features/dashboards/actions.ts` contains dashboard Server Actions. Each
   action checks the origin, loads the current actor, converts FormData into
@@ -886,14 +886,14 @@ their role-specific routes:
 - `/platform`, `/platform/colleges`, `/platform/users`, `/platform/analytics`,
   `/platform/audit-logs`, `/platform/settings`
 
-For the Prompt 6 poster workflow, sign in as a club administrator, create a
+For the Poster workflow, sign in as a club administrator, create a
 draft with a PNG/JPEG/WebP poster, confirm the preview and current poster, submit
 for approval, approve it as a college administrator, view it as a same-college
 student, register, confirm the registration notification, cancel, replace the
 poster, verify the old URL returns `404`, verify cross-college and unauthenticated
 access is denied, then remove the poster and confirm the empty state.
 
-For Prompt 7, create a draft with a readable poster, run OCR, review and accept
+For Event Intelligence, create a draft with a readable poster, run OCR, review and accept
 only selected fields, and confirm the event remains a draft. Submit two similar
 same-day events and confirm a college administrator sees an advisory duplicate
 suggestion that can be confirmed or dismissed without changing either event.
@@ -902,7 +902,7 @@ verify adjacent events do not warn. Check the student overview recommendations
 and their explanations. Repeat the event, recommendation, duplicate, and warning
 views at 360, 390, 768, 1024, 1280, and 1440 pixel widths.
 
-For Prompt 8, complete a seeded event and open `/club/attendance`. Issue/scan a
+For Event Operations, complete a seeded event and open `/club/attendance`. Issue/scan a
 QR credential or use the manual token fallback, verify the check-in timestamp,
 record a reasoned correction, and download the attendance CSV. As the student,
 submit feedback from `/student/feedback` and confirm it appears read-only in
@@ -921,7 +921,7 @@ cross-role redirects. Verify dashboard and event-detail layouts at 360, 390, 768
 1024, 1280, and 1440 pixel widths. Stop any stale production server before
 rebuilding.
 
-For the final Prompt 10 gate, run:
+For the final Release verification gate, run:
 
 ```powershell
 npx prisma validate
@@ -934,8 +934,8 @@ npm run build
 npm test
 ```
 
-The Prompt 10 capture report at
-`docs/screenshots/prompt-10/capture-report.json` records 50 audited route visits
+The Showcase capture report at
+`docs/screenshots/showcase/capture-report.json` records 50 audited route visits
 and 27 screenshots at all six widths, with no browser console errors, no
 non-success routes, and no horizontal overflow. The exact final gate results and
 remaining production limitations are in
@@ -954,32 +954,32 @@ remaining production limitations are in
 - [Future screen specifications](docs/future-screens.md)
 - [Focused security review](docs/security-review.md)
 
-### Submission readiness (Prompt 10)
+### Submission readiness (Production Release)
 
 - [Feature matrix](docs/FEATURE_MATRIX.md)
 - [Submission guide](docs/SUBMISSION_GUIDE.md)
 - [Project demo script](docs/PROJECT_DEMO_SCRIPT.md)
 - [Final verification report](docs/FINAL_VERIFICATION_REPORT.md)
-- [Prompt 10 screenshots](docs/screenshots/prompt-10/)
-- [Prompt 10 capture report](docs/screenshots/prompt-10/capture-report.json)
+- [Showcase screenshots](docs/screenshots/showcase/)
+- [Showcase capture report](docs/screenshots/showcase/capture-report.json)
 
-### Production readiness (Prompt 9)
+### Production readiness (Production Hardening)
 
-- [Final verification report](docs/PROMPT_9_VERIFICATION_REPORT.md)
-- [Production readiness audit](docs/PROMPT_9_PRODUCTION_READINESS_AUDIT.md)
-- [Security hardening](docs/PROMPT_9_SECURITY_HARDENING.md)
-- [Reliability](docs/PROMPT_9_RELIABILITY_REPORT.md)
-- [Performance](docs/PROMPT_9_PERFORMANCE_REPORT.md)
-- [Accessibility](docs/PROMPT_9_ACCESSIBILITY_REPORT.md)
-- [Production architecture](docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md)
-- [Deployment guide](docs/PROMPT_9_DEPLOYMENT_GUIDE.md)
-- [Environment reference](docs/PROMPT_9_ENVIRONMENT_REFERENCE.md)
-- [Backup and recovery](docs/PROMPT_9_BACKUP_AND_RECOVERY.md)
-- [Operations runbook](docs/PROMPT_9_OPERATIONS_RUNBOOK.md)
+- [Final verification report](docs/PRODUCTION_VERIFICATION_REPORT.md)
+- [Production readiness audit](docs/PRODUCTION_READINESS_AUDIT.md)
+- [Security hardening](docs/SECURITY_HARDENING.md)
+- [Reliability](docs/RELIABILITY_REPORT.md)
+- [Performance](docs/PERFORMANCE_REPORT.md)
+- [Accessibility](docs/ACCESSIBILITY_REPORT.md)
+- [Production architecture](docs/PRODUCTION_ARCHITECTURE.md)
+- [Deployment guide](docs/DEPLOYMENT_GUIDE.md)
+- [Environment reference](docs/ENVIRONMENT_REFERENCE.md)
+- [Backup and recovery](docs/BACKUP_AND_RECOVERY.md)
+- [Operations runbook](docs/OPERATIONS_RUNBOOK.md)
 
 ## Scope boundary
 
-Prompt 10 stops after the final submission polish and verification pass:
+The application verification stops after the final submission polish and verification pass:
 landing-page messaging and role preview, dashboard navigation and hierarchy,
 responsive fixes, new evidence, and submission documentation. The final status
 is **SUBMISSION READY WITH LIMITATIONS**. A live production deployment, live

@@ -1,13 +1,13 @@
 # Attendance, feedback, calendar, analytics, and exports
 
-This document describes the Prompt 8 operations surface. It connects the
+This document describes the Event Operations operations surface. It connects the
 existing QR attendance, feedback, calendar, analytics, notification, audit, and
 authorization services to role-specific pages and authenticated download routes.
 All numbers come from PostgreSQL records. There is no sample, estimated, or
 client-generated analytics data.
 
-Prompt 8 applies
-`prisma/migrations/20261115000000_prompt8_event_operations/migration.sql`, which
+Event Operations applies
+`prisma/migrations/20261115000000_event_operations/migration.sql`, which
 adds `attendance_credentials`, `notification_preferences`, feedback moderation
 fields, the attendance/feedback/preference audit actions, and the
 `ATTENDANCE_UPDATE`/`FEEDBACK_UPDATE` notification types. See
@@ -107,7 +107,7 @@ when there are no eligible registrations.
   `method: "MANUAL"`.
 - The server checks that the organizer is an active president/officer of the
   owning club, a same-college college administrator, or a platform
-  administrator. The Prompt 8 UI exposes the club workflow.
+  administrator. The Event Operations UI exposes the club workflow.
 
 ### Attendance CSV
 
@@ -167,7 +167,7 @@ action.
 ### College moderation
 
 `/college/feedback` supports event, club, rating, and moderation-status filters
-with pagination. The Prompt 8 UI exposes moderation to college administrators;
+with pagination. The Event Operations UI exposes moderation to college administrators;
 the service also permits platform administrators. Hiding or restoring a response
 requires a reason of 3 to 500 characters. Moderation
 preserves the original rating and comment, records the moderator and timestamp,
@@ -327,7 +327,7 @@ are database counts, not client-side approximations.
 
 ## 8. Tests and screenshots
 
-Prompt 8 adds four unit/integration suites (26 tests) covering:
+Event Operations adds four unit/integration suites (26 tests) covering:
 
 - attendance window, QR issuance, scan success/failure, corrections, reasons,
   authorization, revocation, and audit metadata;
@@ -338,7 +338,7 @@ Prompt 8 adds four unit/integration suites (26 tests) covering:
 - analytics filters and aggregates, CSV authorization, notification filters,
   pagination, preferences, and read state.
 
-The Playwright workflow in `tests/e2e/prompt-8.spec.ts` creates and publishes an
+The Playwright workflow in `tests/e2e/event-operations.spec.ts` creates and publishes an
 event, registers a student, moves the event into the attendance window, issues a
 QR, records attendance with the manual code, downloads attendance CSV, completes
 the event, submits and reviews feedback, downloads all three ICS scopes and all
@@ -346,7 +346,7 @@ four CSV scopes, checks analytics, exercises notification filters and
 preferences, verifies responsive attendance/notification layouts, and cleans up
 its event. It also checks that unauthenticated exports are rejected.
 
-Screenshots are stored in `docs/screenshots/prompt-8/`:
+Screenshots are stored in `docs/screenshots/operations/`:
 
 - `01-club-attendance-1440.png`
 - `02-student-feedback-1440.png`

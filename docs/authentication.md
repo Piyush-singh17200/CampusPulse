@@ -1,8 +1,8 @@
 # Authentication, sessions, and authorization
 
-Scope: Prompt 4 authentication and server-side authorization for CampusPulse,
-extended in Prompt 5 with dashboard route guards and role workspace access, and
-in Prompt 6 with authenticated poster management and poster delivery. This
+Scope: Authentication & RBAC authentication and server-side authorization for CampusPulse,
+extended in Role Dashboards with dashboard route guards and role workspace access, and
+in Event Posters with authenticated poster management and poster delivery. This
 document describes the implemented controls and the remaining limitations. It is
 not a production-readiness claim.
 
@@ -93,7 +93,7 @@ The actor is built from the verified session plus a fresh database read.
 - `requireAuthenticatedUser`, `requireRole`, `requireCollegeAccess`,
   `requireCollegeAdmin`, `requirePlatformAdmin`, and `requireClubAccess`.
 
-Prompt 5 adds a dashboard layer on top of the same actor model:
+Role Dashboards adds a dashboard layer on top of the same actor model:
 
 - `src/server/auth/page-guard.ts` implements `requireDashboardRole(role)` for the
   four workspace layouts. It redirects unauthenticated users, disabled accounts,
@@ -110,7 +110,7 @@ Prompt 5 adds a dashboard layer on top of the same actor model:
 - Platform dashboards require `SUPER_ADMIN`; they do not use an impersonation
   cookie or accept a target actor identity from the browser.
 
-Prompt 6 reuses the same actor model:
+Event Posters reuses the same actor model:
 
 - Poster upload/replacement/removal requires an active owning-club
   president/officer and is limited to `DRAFT`, `REJECTED`, and `PUBLISHED`
@@ -243,7 +243,7 @@ password, or default administrator. After it succeeds:
 2. Promote that account with `auth:bootstrap-super-admin`.
 3. Sign in again because promotion revokes existing sessions.
 
-See `docs/PROMPT_9_DEPLOYMENT_GUIDE.md` for the full first-run sequence.
+See `docs/DEPLOYMENT_GUIDE.md` for the full first-run sequence.
 
 ## Auth screens
 

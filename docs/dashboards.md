@@ -1,10 +1,10 @@
 # Role dashboards, routes, and Server Actions
 
-Prompt 5 implements four authenticated, role-specific CampusPulse dashboards.
-Prompt 6 extends them with event poster management, authenticated poster
-delivery, and transactional in-app notifications. Prompt 7 adds local poster
+Role Dashboards implements four authenticated, role-specific CampusPulse dashboards.
+Event Posters extends them with event poster management, authenticated poster
+delivery, and transactional in-app notifications. Event Intelligence adds local poster
 OCR review, student recommendations, advisory duplicate review, and schedule-
-conflict warnings. Prompt 8 adds QR attendance, student/club/college feedback,
+conflict warnings. Event Operations adds QR attendance, student/club/college feedback,
 authenticated ICS downloads, authorized CSV exports, engagement analytics, and
 notification filters/preferences. Every page reads real PostgreSQL data through
 server-only query functions and every mutation goes through a Server Action or
@@ -108,7 +108,7 @@ for any other club.
 
 Each workspace has a role-specific layout plus `loading.tsx` and `error.tsx`
 states. Empty states are rendered per section rather than as fake sample data.
-Prompt 8 adds route-level loading/error states for attendance, feedback, and
+Event Operations adds route-level loading/error states for attendance, feedback, and
 notifications; error boundaries show a generic message and an optional digest,
 never raw server error text.
 
@@ -146,7 +146,7 @@ dashboard read model. Query functions:
 `src/server/dashboards/access.ts` contains the role, managed-club, college-scope,
 and club-manager assertions shared by queries and Server Actions.
 `src/server/dashboards/engagement-analytics.ts` and `feedback.ts` contain the
-Prompt 8 server-only aggregates and feedback read models;
+Event Operations server-only aggregates and feedback read models;
 `src/lib/analytics-query.ts` normalizes date/event/club/category/status filters
 before they reach Prisma.
 
@@ -384,46 +384,46 @@ Dashboard and event-operation test coverage includes:
 - Playwright create → preview → submit → approve → student view → register →
   club registration list → cancel → replace → access-control checks → remove →
   responsive layouts;
-- Prompt 7 OCR extraction and review, OCR claim/failure safety, recommendation
+- OCR extraction and review, OCR claim/failure safety, recommendation
   eligibility and explanations, duplicate scoring/review and the submission
   hook, schedule-overlap detection, registration revalidation, and audit
   metadata;
-- Prompt 7 Playwright OCR review, recommendations, duplicate review, conflict
+- Event Intelligence Playwright OCR review, recommendations, duplicate review, conflict
   warnings, and responsive layouts;
-- Prompt 8 attendance window/credential/scan/correction authorization and audit,
+- Event attendance window/credential/scan/correction authorization and audit,
   feedback eligibility/submission/edit/moderation, ICS escaping and scoped
   downloads, CSV BOM/CRLF/formula protection, analytics filters and aggregates,
   notification filters/pagination/preferences, and read state;
-- Prompt 8 Playwright attendance, feedback, ICS/CSV downloads, analytics,
+- Event Operations Playwright attendance, feedback, ICS/CSV downloads, analytics,
   notifications, authorization checks, and responsive layouts.
 
 All tests run against the isolated `campuspulse_test` database. The dashboard,
-Prompt 6, Prompt 7, and Prompt 8 migrations are applied by the test global setup
+Event Posters, Event Intelligence, and Event Operations migrations are applied by the test global setup
 through `prisma migrate deploy`. The full suite was verified with 28 test files /
 215 tests passing.
 
 ## 11. Visual verification
 
 Desktop and mobile overview screenshots for all four workspaces are stored in
-`docs/screenshots/prompt-5/`:
+`docs/screenshots/dashboards/`:
 
 - `student-desktop.png` and `student-mobile.png`;
 - `club-desktop.png` and `club-mobile.png`;
 - `college-desktop.png` and `college-mobile.png`;
 - `platform-desktop.png` and `platform-mobile.png`.
 
-Prompt 6 workflow screenshots are stored in `docs/screenshots/prompt-6/` and
+Poster workflow screenshots are stored in `docs/screenshots/posters/` and
 cover the club create preview, draft poster, college approval, student event,
 registration, club registration list, cancellation notification, replacement,
 removal fallback, and student event detail at 360, 390, 768, 1024, 1280, and
 1440 pixel widths.
 
-Prompt 7 workflow screenshots are stored in `docs/screenshots/prompt-7/` and
+Intelligence workflow screenshots are stored in `docs/screenshots/intelligence/` and
 cover the OCR review panel, student recommendations, college duplicate review,
 schedule-conflict warning, and responsive layouts at 360, 390, 768, 1024, 1280,
 and 1440 pixel widths.
 
-Prompt 8 screenshots are stored in `docs/screenshots/prompt-8/` and cover the
+Operations screenshots are stored in `docs/screenshots/operations/` and cover the
 club attendance register, student/club/college feedback, club/college/platform
 analytics, and student notifications at 1440 px plus attendance and
 notifications at 390 px.

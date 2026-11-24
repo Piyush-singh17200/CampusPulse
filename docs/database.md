@@ -1,12 +1,12 @@
 # CampusPulse database architecture
 
-This document describes the PostgreSQL/Prisma layer through Prompt 8. The
+This document describes the PostgreSQL/Prisma layer through Event Operations. The
 database includes Better Auth session/account tables, custom reset, rate-limit,
 and anonymous auth-audit tables, persistent saved events for the student
 dashboard, poster metadata and audit actions, transactional in-app
-notifications for event moderation and registration changes, the Prompt 7
+notifications for event moderation and registration changes, the Event Intelligence
 event-intelligence tables for OCR review, event interests, and advisory
-duplicate review, and the Prompt 8 attendance-credential and notification-
+duplicate review, and the Event attendance-credential and notification-
 preference tables plus feedback moderation fields. The business services and
 dashboard queries remain server-only building blocks and are not exposed through
 public business API routes; auth, dashboard mutations, and authenticated
@@ -102,13 +102,13 @@ without resetting existing data. The additive
 `prisma/migrations/20261110000000_dashboard_saved_events/migration.sql` adds the
 `saved_events` table, its composite tenant foreign keys and unique pair, and the
 `SAVED_EVENT_CHANGED` and `NOTIFICATION_READ` audit actions. The additive
-`prisma/migrations/20261111000000_prompt6_poster_audit/migration.sql` extends
+`prisma/migrations/20261111000000_poster_audit/migration.sql` extends
 `AuditAction` with `POSTER_UPLOADED`, `POSTER_REPLACED`, and `POSTER_REMOVED`.
 The additive
-`prisma/migrations/20261113000000_prompt7_event_intelligence/migration.sql` adds
+`prisma/migrations/20261113000000_event_intelligence/migration.sql` adds
 the OCR enums, `event_interests`, `poster_ocr_fields`, OCR timestamps/error and
 composite poster uniqueness, and duplicate review reasons/indexes. The additive
-`prisma/migrations/20261115000000_prompt8_event_operations/migration.sql` adds
+`prisma/migrations/20261115000000_event_operations/migration.sql` adds
 `attendance_credentials` and `notification_preferences`, feedback moderation
 fields and index, the `FeedbackModerationStatus` enum, attendance/feedback/
 preference audit actions, `ATTENDANCE_UPDATE`/`FEEDBACK_UPDATE` notification
@@ -564,7 +564,7 @@ In a hosted environment, `DATABASE_URL` should be the pooled connection and
 
 ## 10. Security limitations and follow-ups
 
-- Authentication and database sessions are implemented in Prompt 4. Services
+- Authentication and database sessions are implemented in Authentication & RBAC. Services
   require a trusted `AuthenticatedActor`; no public business route currently
   accepts an actor identifier from a request body.
 - RLS is not implemented. Application-layer scoping and composite foreign keys

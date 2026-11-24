@@ -1,4 +1,4 @@
-# Prompt 9 — Operations Runbook
+# Production Hardening — Operations Runbook
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
@@ -326,8 +326,8 @@ the deployment owner. They are intentionally not invented here.
 
 ## 18. References
 
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_BACKUP_AND_RECOVERY.md`
-- `docs/PROMPT_9_RELIABILITY_REPORT.md`
-- `docs/PROMPT_9_SECURITY_HARDENING.md`
-- `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/RELIABILITY_REPORT.md`
+- `docs/SECURITY_HARDENING.md`
+- `docs/ENVIRONMENT_REFERENCE.md`

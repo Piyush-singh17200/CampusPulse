@@ -174,7 +174,7 @@ async function createAnalyticsFixture() {
   };
 }
 
-describe("Prompt 8 engagement analytics", () => {
+describe("Engagement analytics", () => {
   it("derives club metrics, rates, trends, and visible-feedback averages from real rows", async () => {
     const fixture = await createAnalyticsFixture();
     const data = await getClubEngagementAnalytics(fixture.managerActor, fixture.club.id);
@@ -398,7 +398,7 @@ describe("Prompt 8 engagement analytics", () => {
   });
 });
 
-describe("Prompt 8 notifications", () => {
+describe("Notifications", () => {
   async function createNotificationFixture() {
     const college = await createCollege();
     const { user: student } = await createStudent(college.id, { name: "Student One" });

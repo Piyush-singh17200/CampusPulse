@@ -13,7 +13,7 @@
 - [ ] The four demo accounts are available with password `CampusPulse!2026`.
 - [ ] Browser zoom is 100%, window is about 1440 px wide.
 - [ ] Close personal tabs and notifications.
-- [ ] Keep the Prompt 10 screenshot folder open as a fallback.
+- [ ] Keep the Production Release screenshot folder open as a fallback.
 - [ ] Do not open DevTools, `.env.local`, secrets, or production dashboards.
 
 ## The 10-minute sequence
@@ -163,8 +163,8 @@ Close with:
 
 If the live app fails:
 
-- Open `docs/screenshots/prompt-10/01-landing-hero-1440.png` through `20-platform-settings-1440.png`.
-- Use `docs/screenshots/prompt-10/capture-report.json` for the route audit.
+- Open `docs/screenshots/showcase/01-landing-hero-1440.png` through `20-platform-settings-1440.png`.
+- Use `docs/screenshots/showcase/capture-report.json` for the route audit.
 - Use `docs/FEATURE_MATRIX.md` for the capability inventory.
 - State plainly that the local demo database or server is unavailable, rather than claiming a production deployment.
 

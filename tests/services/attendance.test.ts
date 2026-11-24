@@ -56,7 +56,7 @@ async function createAttendanceFixture() {
   };
 }
 
-describe("Prompt 8 QR attendance", () => {
+describe("QR attendance", () => {
   it("issues a registration-bound QR and records a valid check-in with audit and notification", async () => {
     const fixture = await createAttendanceFixture();
     const issued = await issueAttendanceQr(fixture.studentActor, fixture.registration.id);

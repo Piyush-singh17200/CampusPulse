@@ -1,10 +1,10 @@
-# Prompt 9 — Reliability Report
+# Production Hardening — Reliability Report
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
 **Status:** Implemented and verified locally; production operations remain gated
 
-This report describes the reliability controls added or verified in Prompt 9,
+This report describes the reliability controls added or verified in Production Hardening,
 the failure modes that remain, and the checks an operator must run before and
 after deployment.
 
@@ -85,7 +85,7 @@ Operational implications:
 
 ## 4. OCR reliability
 
-The OCR path is the most CPU-intensive request in the application. Prompt 9
+The OCR path is the most CPU-intensive request in the application. Production Hardening
 bounds it in four layers:
 
 1. **Per-user budget.** `posterOcrUser` allows 10 OCR requests per 10 minutes
@@ -246,29 +246,29 @@ database messages to the browser.
 | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Health endpoint `200` and payload      | Passed in development and production builds; final warm request 42.5 ms with 3 ms database latency |
 | Health endpoint `503` fault injection  | Not performed; documented gap                                                                      |
-| OCR timeout/cooldown/stale-claim tests | Passed (9 Prompt 9 hardening tests)                                                                |
+| OCR timeout/cooldown/stale-claim tests | Passed (9 Production Hardening hardening tests)                                                    |
 | Rate-limit fail-closed unit test       | Passed                                                                                             |
 | Export limiter + audit end to end      | Passed (development and production builds)                                                         |
 | Production build                       | Cold build passed; compiled 11.7 s, TypeScript 22.6 s, 42 static units                             |
 | Full unit/integration suite            | 31 files / 235 tests passed in 105.25 s                                                            |
-| Prompt 9 E2E                           | 5/5 in development (31.2 s) and 5/5 in production (11.1 s)                                         |
+| Hardening E2E                          | 5/5 in development (31.2 s) and 5/5 in production (11.1 s)                                         |
 | Full Playwright regression             | **9/9 in one clean production-build run (1.4 min)**                                                |
 
 The full Playwright suite is green in one run. The earlier development-server
 failure was environmental memory pressure; it also exposed a production-only
 CSP attribute-hash gap for `next/image`, which is now fixed. Details are in
-`docs/PROMPT_9_VERIFICATION_REPORT.md`.
+`docs/PRODUCTION_VERIFICATION_REPORT.md`.
 
 ## 12. References
 
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
-- `docs/PROMPT_9_BACKUP_AND_RECOVERY.md`
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_PERFORMANCE_REPORT.md`
-- `docs/PROMPT_9_VERIFICATION_REPORT.md`
-- `.data/prompt9-test-verified.log`
-- `.data/prompt9-build-final-prod.log`
-- `.data/prompt9-e2e-prod-final.log`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/PERFORMANCE_REPORT.md`
+- `docs/PRODUCTION_VERIFICATION_REPORT.md`
+- `.data/production-test-verified.log`
+- `.data/production-build-final-prod.log`
+- `.data/production-e2e-prod-final.log`
 - `src/app/api/health/route.ts`
 - `src/server/auth/rate-limit.ts`
 - `src/services/poster-ocr.ts`

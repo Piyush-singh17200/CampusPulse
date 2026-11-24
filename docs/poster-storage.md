@@ -1,7 +1,7 @@
 # Poster storage and delivery
 
-Prompt 6 added one primary poster per event. Prompt 7 added bounded OCR, and
-Prompt 9 added an S3-compatible storage adapter for production. The feature
+Event Posters added one primary poster per event. Event Intelligence added bounded OCR, and
+Production Hardening added an S3-compatible storage adapter for production. The feature
 remains deliberately small: content-validated JPEG, PNG, and WebP files, a
 server-only storage interface, a local filesystem adapter for development, a
 private S3-compatible adapter for multi-instance deployments, and an
@@ -242,7 +242,7 @@ validation and authorization checks.
 | Event deleted                             | Poster row cascades with the event; delivery returns `404`.             |
 | Concurrent replacement                    | Each request writes its own key; the transaction determines the winner. |
 
-There is no background garbage collector in Prompt 6. Operators should monitor
+There is no background garbage collector in Event Posters. Operators should monitor
 for orphan files if filesystem cleanup fails. A production adapter should
 provide durable storage, lifecycle rules, and a reconciliation job.
 
@@ -267,7 +267,7 @@ The S3 adapter is the production path for multi-instance deployments:
 - Use a dedicated key limited to the poster prefix.
 - Enable versioning and/or lifecycle rules according to the backup policy.
 - The adapter has been verified against the AWS SigV4 test vector, but it has
-  **not** been exercised against a live bucket in Prompt 9. Run the deployment
+  **not** been exercised against a live bucket in Production Hardening. Run the deployment
   smoke test before launch.
 - There is no CDN or signed URL. Delivery remains an authenticated application
   request.
@@ -290,16 +290,16 @@ Coverage includes:
   cleanup.
 - `tests/services/ocr-extract.test.ts`: OCR field extraction and normalization.
 - `tests/services/poster-ocr.test.ts`: OCR service behavior and persistence.
-- `tests/services/prompt-9-hardening.test.ts`: rate-limit policies, fail-closed
+- `tests/services/production-hardening.test.ts`: rate-limit policies, fail-closed
   behavior, export audit, OCR timeout/cooldown, and health payload safety.
 - `tests/services/s3-signing.test.ts`: SigV4 canonical request and signature
   against the published AWS S3 test vector.
-- `tests/e2e/prompt-6.spec.ts`: create with preview, draft access denial,
+- `tests/e2e/posters.spec.ts`: create with preview, draft access denial,
   submit/approve, student visibility, registration notification, cancellation,
   replacement, old-URL revocation, cross-college denial, removal, and responsive
   layouts.
-- `tests/e2e/prompt-7.spec.ts`: OCR review and poster workflow.
-- `tests/e2e/prompt-9.spec.ts`: health, security headers, unauthenticated
+- `tests/e2e/event-intelligence.spec.ts`: OCR review and poster workflow.
+- `tests/e2e/production-hardening.spec.ts`: health, security headers, unauthenticated
   `401`s, export limiter/audit, skip navigation, labels, and responsive
   overflow.
 

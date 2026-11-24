@@ -11,7 +11,7 @@ const STUDENT_EMAIL = "isha.rao@campuspulse.example";
 const COLLEGE_ADMIN_EMAIL = "northfield.admin@campuspulse.example";
 const PLATFORM_ADMIN_EMAIL = "platform.admin@campuspulse.example";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "prompt-8");
+const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "operations");
 
 function databaseUrl(): string {
   if (process.env.DATABASE_URL) {
@@ -190,10 +190,10 @@ async function createDraft(
 ): Promise<{ eventId: string; clubId: string }> {
   await page.goto("/club/events/create");
   await page.getByLabel("Event title").fill(input.title);
-  await page.getByLabel("Short summary").fill(`Prompt 8 workflow for ${input.title}.`);
+  await page.getByLabel("Short summary").fill(`Operations workflow for ${input.title}.`);
   await page
     .getByLabel("Full description")
-    .fill("A deterministic event created by the Prompt 8 browser workflow.");
+    .fill("A deterministic event created by the automated browser workflow.");
   await page.getByLabel("Starts at").fill(localDateTime(input.startsAt));
   await page.getByLabel("Ends at").fill(localDateTime(input.endsAt));
   await page.getByLabel("Registration opens").fill(localDateTime(input.registrationOpensAt));
@@ -214,7 +214,7 @@ async function createDraft(
   return { eventId, clubId };
 }
 
-test("Prompt 8 attendance, feedback, calendar, exports, analytics, and notifications", async ({
+test("Campus event operations, attendance, feedback, calendar, exports, analytics, and notifications", async ({
   page,
   browser,
 }) => {
@@ -239,7 +239,7 @@ test("Prompt 8 attendance, feedback, calendar, exports, analytics, and notificat
   let collegeContext: Awaited<ReturnType<typeof newLoggedInPage>>["context"] | null = null;
   let studentContext: Awaited<ReturnType<typeof newLoggedInPage>>["context"] | null = null;
   let platformContext: Awaited<ReturnType<typeof newLoggedInPage>>["context"] | null = null;
-  const title = `Prompt 8 Campus Operations ${Date.now()}`;
+  const title = `Campus Operations ${Date.now()}`;
   const startsAt = new Date(Date.now() + 60 * 60 * 1000);
   const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
   const registrationOpensAt = new Date(Date.now() - 60 * 60 * 1000);
@@ -474,7 +474,7 @@ test("Prompt 8 attendance, feedback, calendar, exports, analytics, and notificat
   }
 });
 
-test("Prompt 8 authenticated exports reject unauthenticated callers", async ({ request }) => {
+test("Authenticated exports reject unauthenticated callers", async ({ request }) => {
   const response = await request.get("/api/exports/club/attendance", {
     headers: { accept: "text/csv" },
     maxRedirects: 0,

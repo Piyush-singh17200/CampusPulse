@@ -1,4 +1,4 @@
-# Prompt 9 — Backup and Recovery
+# Production Hardening — Backup and Recovery
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
@@ -255,8 +255,8 @@ with availability requirements.
 
 ## 11. References
 
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
-- `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md`
-- `docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/ENVIRONMENT_REFERENCE.md`
+- `docs/PRODUCTION_ARCHITECTURE.md`
 - `docs/database.md`

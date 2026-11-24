@@ -1,13 +1,13 @@
 # Future screen specifications
 
-These screens began as specifications. Prompt 5 implements the student, club
+These screens began as specifications. Role Dashboards implements the student, club
 administrator, college administrator, and platform administrator dashboard
 routes described here; see `docs/dashboards.md` for the actual route map and
-authorization model. Prompt 6 implements event poster upload, replacement, and
+authorization model. Event Posters implements event poster upload, replacement, and
 removal with authenticated delivery; see `docs/poster-storage.md` and
-`docs/event-operations.md`. Prompt 7 implements local poster OCR review,
+`docs/event-operations.md`. Event Intelligence implements local poster OCR review,
 deterministic recommendations, advisory duplicate review, and schedule-conflict
-warnings; see `docs/event-intelligence.md`. Prompt 8 implements QR attendance,
+warnings; see `docs/event-intelligence.md`. Event Operations implements QR attendance,
 student/club/college feedback, authenticated ICS/CSV downloads, club/college/
 platform analytics, and notification filters/preferences; see
 `docs/attendance-feedback-analytics.md`. Crop/focal-point editing, semantic
@@ -54,7 +54,7 @@ edit interests, browse all events.
 **Loading state:** Dashboard skeleton with one featured card and three compact
 rows; preserve layout and do not show fake counts.
 
-**Empty state:** “Your week is quiet” with a link to explore events and a prompt
+**Empty state:** “Your week is quiet” with a link to explore events and an invitation
 to add interests.
 
 **Error state:** Section-level error with retry; if the profile fails to load,
@@ -252,7 +252,7 @@ preferences, save, cancel.
 **Loading state:** Form skeleton with disabled controls; do not prefill with
 another user's data.
 
-**Empty state:** Prompt to add department/year/interests; do not block core
+**Empty state:** Suggestion to add department/year/interests; do not block core
 browsing.
 
 **Error state:** Field-level errors plus a summary; preserve edits; server
@@ -389,7 +389,7 @@ bar; destructive actions in an overflow menu with confirmation.
 
 ### 13. Poster upload
 
-**Status:** Implemented in Prompt 6. Local OCR review is implemented in Prompt 7.
+**Status:** Implemented in Event Posters. Local OCR review is implemented in Event Intelligence.
 Crop/focal-point editing remains future work.
 
 **Purpose:** Attach a safe, accessible poster to an event.
@@ -422,7 +422,7 @@ below; upload button sticky.
 
 ### 14. OCR review
 
-**Status:** Implemented in Prompt 7 as an explicit local Tesseract.js action with
+**Status:** Implemented in Event Intelligence as an explicit local Tesseract.js action with
 per-field human review. It is available only for `DRAFT`/`REJECTED` events with
 a primary poster and never publishes, submits, or approves an event.
 
@@ -455,7 +455,7 @@ sticky; long text uses a full-screen editor.
 
 ### 15. Registration management
 
-**Status:** Implemented in Prompt 8 as `/club/attendance`, with QR/manual
+**Status:** Implemented in Event Operations as `/club/attendance`, with QR/manual
 check-in, reasoned corrections, timestamps, filters, and attendance CSV export.
 
 **Purpose:** Let a club administrator understand and manage event attendance.
@@ -487,7 +487,7 @@ sheet; export in overflow.
 
 ### 16. Club analytics
 
-**Status:** Implemented in Prompt 8 with real aggregates, filters, trends,
+**Status:** Implemented in Event Operations with real aggregates, filters, trends,
 attendance/rating distributions, event breakdowns, and CSV export.
 
 **Purpose:** Show a club administrator useful, non-vanity event performance.
@@ -596,7 +596,7 @@ sticky action bar; rejection reason in a dialog.
 
 ### 20. Duplicate review
 
-**Status:** Implemented in Prompt 7 as an advisory, same-college review queue.
+**Status:** Implemented in Event Intelligence as an advisory, same-college review queue.
 It never merges, rejects, cancels, or deletes either event.
 
 **Purpose:** Resolve suspected duplicate events without deleting history.
@@ -651,7 +651,7 @@ sheet.
 
 ### 22. College analytics
 
-**Status:** Implemented in Prompt 8 with real aggregates, filters, trends,
+**Status:** Implemented in Event Operations with real aggregates, filters, trends,
 attendance/rating distributions, event breakdowns, and CSV export.
 
 **Purpose:** Understand college-wide event activity, moderation, and engagement.
@@ -802,7 +802,7 @@ metadata, save, view audit.
 **Loading state:** Form skeleton; mark unloaded secret fields as “configured” or
 “not configured,” never display values.
 
-**Empty state:** Not applicable; show configuration prompts.
+**Empty state:** Not applicable; show configuration guidance.
 
 **Error state:** Validation and integration errors; never log or render secrets.
 
@@ -814,7 +814,7 @@ masked.
 
 ### 28. Platform analytics
 
-**Status:** Implemented in Prompt 8 with real cross-college aggregates, date/
+**Status:** Implemented in Event Operations with real cross-college aggregates, date/
 status filters, trends, activity distributions, and CSV export.
 
 **Purpose:** Understand adoption, moderation load, and reliability across
@@ -859,9 +859,9 @@ sheet.
 | Resolve duplicate events               | no      | no                        | yes, own college                 | yes                       |
 
 These are product specifications. The authoritative implementation rules remain
-in the server services and the database constraints. Prompt 4 supplies a trusted
-`AuthenticatedActor` from the verified session; Prompt 5 dashboard routes enforce
-role and tenant checks before calling these services. Prompt 6 adds poster
+in the server services and the database constraints. Authentication & RBAC supplies a trusted
+`AuthenticatedActor` from the verified session; Role Dashboards dashboard routes enforce
+role and tenant checks before calling these services. Event Posters adds poster
 management and authenticated delivery without changing the role model. See
 `docs/dashboards.md` for the implemented route map and `docs/event-operations.md`
 for the lifecycle, notification, and poster rules.

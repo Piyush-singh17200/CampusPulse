@@ -9,7 +9,7 @@ const PASSWORD = "CampusPulse!2026";
 const CLUB_ADMIN_EMAIL = "robotics.president@campuspulse.example";
 const STUDENT_EMAIL = "isha.rao@campuspulse.example";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "prompt-9");
+const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "responsive");
 
 function databaseUrl(): string {
   if (process.env.DATABASE_URL) {
@@ -114,9 +114,7 @@ async function attendanceExportTarget(): Promise<{ clubId: string; eventId: stri
   });
 }
 
-test("Prompt 9 health endpoint reports readiness without leaking configuration", async ({
-  request,
-}) => {
+test("Health endpoint reports readiness without leaking configuration", async ({ request }) => {
   const response = await request.get("/api/health");
 
   expect(response.status()).toBe(200);
@@ -134,7 +132,7 @@ test("Prompt 9 health endpoint reports readiness without leaking configuration",
   expect(JSON.stringify(body)).not.toContain("DATABASE_URL");
 });
 
-test("Prompt 9 pages carry the hardened security headers", async ({ request }) => {
+test("Pages carry the hardened security headers", async ({ request }) => {
   const response = await request.get("/");
   const headers = response.headers();
 
@@ -151,7 +149,7 @@ test("Prompt 9 pages carry the hardened security headers", async ({ request }) =
   expect(headers["x-powered-by"]).toBeUndefined();
 });
 
-test("Prompt 9 unauthenticated exports, calendars, and posters return 401", async ({ request }) => {
+test("Unauthenticated exports, calendars, and posters return 401", async ({ request }) => {
   const missingEventId = "00000000-0000-4000-8000-000000000000";
   const paths = [
     "/api/exports/club/analytics",
@@ -171,9 +169,7 @@ test("Prompt 9 unauthenticated exports, calendars, and posters return 401", asyn
   }
 });
 
-test("Prompt 9 club attendance export is rate-limited and audited end to end", async ({
-  browser,
-}) => {
+test("Club attendance export is rate-limited and audited end to end", async ({ browser }) => {
   const { clubId, eventId } = await attendanceExportTarget();
   const entityId = `club-attendance:${eventId}`;
 
@@ -259,7 +255,7 @@ test("Prompt 9 club attendance export is rate-limited and audited end to end", a
   }
 });
 
-test("Prompt 9 login and dashboard keep keyboard and responsive access", async ({ browser }) => {
+test("Login and dashboard keep keyboard and responsive access", async ({ browser }) => {
   await mkdir(SCREENSHOT_DIR, { recursive: true });
 
   const context = await browser.newContext({

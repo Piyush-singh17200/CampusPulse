@@ -11,7 +11,7 @@ const STUDENT_EMAIL = "isha.rao@campuspulse.example";
 const COLLEGE_ADMIN_EMAIL = "northfield.admin@campuspulse.example";
 const OTHER_COLLEGE_STUDENT_EMAIL = "omar.ali@campuspulse.example";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "prompt-6");
+const SCREENSHOT_DIR = path.join(process.cwd(), "docs", "screenshots", "posters");
 
 function localDateTime(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -76,7 +76,7 @@ async function screenshot(page: Page, name: string): Promise<void> {
   });
 }
 
-test("Prompt 6 event poster lifecycle, access control, and responsive layouts", async ({
+test("Event poster lifecycle, access control, and responsive layouts", async ({
   page,
   browser,
   request,
@@ -96,7 +96,7 @@ test("Prompt 6 event poster lifecycle, access control, and responsive layouts", 
     }
   });
 
-  const title = `Prompt 6 Robotics Poster ${Date.now()}`;
+  const title = `Robotics Poster ${Date.now()}`;
   const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
   const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
   const registrationOpensAt = new Date(Date.now() - 24 * 60 * 60 * 1000);

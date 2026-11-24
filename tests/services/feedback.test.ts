@@ -72,7 +72,7 @@ async function createFeedbackFixture() {
   };
 }
 
-describe("Prompt 8 feedback", () => {
+describe("Event feedback", () => {
   it("requires verified attendance, a completed event, and a valid rating/comment", async () => {
     const fixture = await createFeedbackFixture();
     const { user: unverifiedStudent, profile: unverifiedProfile } = await createStudent(

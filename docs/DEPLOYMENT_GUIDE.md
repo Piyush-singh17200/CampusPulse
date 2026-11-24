@@ -1,4 +1,4 @@
-# Prompt 9 — Deployment Guide
+# Production Hardening — Deployment Guide
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
@@ -6,7 +6,7 @@
 
 This guide is the operational procedure for a first production deployment. It
 assumes the security and reliability gates in
-`docs/PROMPT_9_VERIFICATION_REPORT.md` have passed and the owner has explicitly
+`docs/PRODUCTION_VERIFICATION_REPORT.md` have passed and the owner has explicitly
 approved the target environment, domain, and any paid services.
 
 ## 0. Approval and preconditions
@@ -16,7 +16,7 @@ Do not start until all of these are true:
 - [ ] The owner has approved the deployment, domain, hosting provider, database
       provider, object storage, SMTP provider, and any recurring cost.
 - [ ] The changes to be deployed are committed and reviewed. The current
-      working tree is intentionally dirty during Prompt 9; do not deploy
+      working tree is intentionally dirty during Production Hardening; do not deploy
       uncommitted work without the owner's review.
 - [ ] Production credentials exist in a secret manager, not in a file that will
       be committed.
@@ -80,7 +80,7 @@ shared across instances and must be included in backups. See
 
 ## 2. Configure the environment
 
-Use `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md` as the contract. Minimum
+Use `docs/ENVIRONMENT_REFERENCE.md` as the contract. Minimum
 production values:
 
 ```dotenv
@@ -134,7 +134,7 @@ npm run build
 checkout. `npm run build` has a `prebuild` hook that generates again, but the
 earlier gates need the generated Prisma client too.
 
-Expected Prompt 9 results:
+Expected Production Hardening results:
 
 - Typecheck: pass.
 - Lint: pass.
@@ -169,7 +169,7 @@ Verify:
 npx prisma migrate status
 ```
 
-Expected: 8 migrations found, database schema up to date. The Prompt 9
+Expected: 8 migrations found, database schema up to date. The Production Hardening
 migration adds the `EXPORT_DOWNLOADED` audit enum value.
 
 If a migration fails:
@@ -216,7 +216,7 @@ npm run auth:bootstrap-super-admin -- initial-admin@example.edu --confirm-super-
 
 For additional colleges, rerun `college:bootstrap` with a new slug and domain.
 There is currently no in-app college creation screen; this is a known product
-gap, not a Prompt 9 regression.
+gap, not a Production Hardening regression.
 
 ## 6. Start the application
 
@@ -330,7 +330,7 @@ Expected:
 
 ### Database rollback
 
-Prompt 9's migration is additive (an enum value). Prefer fixing forward. If a
+Production Hardening's migration is additive (an enum value). Prefer fixing forward. If a
 rollback is unavoidable:
 
 1. Stop all application writes.
@@ -391,10 +391,10 @@ the owner has approved the result.
 
 ## 12. References
 
-- `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md`
-- `docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md`
-- `docs/PROMPT_9_BACKUP_AND_RECOVERY.md`
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
-- `docs/PROMPT_9_VERIFICATION_REPORT.md`
+- `docs/ENVIRONMENT_REFERENCE.md`
+- `docs/PRODUCTION_ARCHITECTURE.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/PRODUCTION_VERIFICATION_REPORT.md`
 - `docs/authentication.md`
 - `docs/poster-storage.md`

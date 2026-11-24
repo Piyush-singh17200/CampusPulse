@@ -95,7 +95,7 @@ beforeEach(async () => {
   authState.user = null;
 });
 
-describe("Prompt 8 calendar route handlers", () => {
+describe("Calendar route handlers", () => {
   it("returns an authenticated single-event ICS with safe download headers", async () => {
     const fixture = await createExportFixture();
     setCurrentUser(fixture.studentActor);
@@ -202,7 +202,7 @@ describe("Prompt 8 calendar route handlers", () => {
   });
 });
 
-describe("Prompt 8 CSV export route handlers", () => {
+describe("CSV export route handlers", () => {
   it("exports authorized club attendance with injection-safe cells", async () => {
     const fixture = await createExportFixture();
     setCurrentUser(fixture.managerActor);

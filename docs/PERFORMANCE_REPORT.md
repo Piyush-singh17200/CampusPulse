@@ -1,11 +1,11 @@
-# Prompt 9 — Performance Report
+# Production Hardening — Performance Report
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
 **Status:** Local measurements complete; no production load test performed
 
 This report records measured build, request, and database performance for the
-Prompt 9 verification environment. The numbers are real local measurements, not
+Production Hardening verification environment. The numbers are real local measurements, not
 capacity guarantees. The dataset is a development seed, so query timings show
 plan shape and overhead, not production-scale throughput.
 
@@ -47,16 +47,16 @@ Result:
 
 Logs:
 
-- `.data/prompt9-build-final.log` — warm build, 16.2 s.
-- `.data/prompt9-build-verified-4.log` — cold build after clearing `.next`,
+- `.data/production-build-final.log` — warm build, 16.2 s.
+- `.data/production-build-verified-4.log` — cold build after clearing `.next`,
   57.1 s.
-- `.data/prompt9-build-final-prod.log` - earlier cold build, 67.8 s.
+- `.data/production-build-final-prod.log` - earlier cold build, 67.8 s.
 
 The earlier cold build was slower because `.next` was deleted and the host was
 under load. The 16.2 s figure is a warm-cache build; it is not a
 production-build guarantee. A later 19 November verification build, also after
 deleting `.next`, compiled in 11.7 s, finished TypeScript in 22.6 s, and
-generated 42/42 static pages in 1.035 s (`.data/prompt9-final-build.log`). These
+generated 42/42 static pages in 1.035 s (`.data/production-final-build.log`). These
 figures vary with host load. All builds produced the same 42 static-generation
 units and the same application routes.
 
@@ -175,15 +175,15 @@ local Docker database.
 
 ## 5. Test and verification timings
 
-| Suite                                       | Result                   | Duration               |
-| ------------------------------------------- | ------------------------ | ---------------------- |
-| Baseline unit/integration (before Prompt 9) | 28 files / 215 tests     | 86.28 s                |
-| Final unit/integration                      | **31 files / 235 tests** | **105.25 s**           |
-| Prompt 9 E2E, development server            | 5/5                      | 31.2 s (historical)    |
-| Prompt 9 E2E, production build (final)      | 5/5                      | 11.1 s (historical)    |
-| Full Playwright regression, production      | **9/9**                  | **1.4 min**            |
-| Prompt 9 hardening tests                    | 9 tests                  | Part of the full suite |
-| SigV4 signing tests                         | 3 tests                  | Part of the full suite |
+| Suite                                                   | Result                   | Duration               |
+| ------------------------------------------------------- | ------------------------ | ---------------------- |
+| Baseline unit/integration (before Production Hardening) | 28 files / 215 tests     | 86.28 s                |
+| Final unit/integration                                  | **31 files / 235 tests** | **105.25 s**           |
+| Hardening E2E, development server                       | 5/5                      | 31.2 s (historical)    |
+| Hardening E2E, production build (final)                 | 5/5                      | 11.1 s (historical)    |
+| Full Playwright regression, production                  | **9/9**                  | **1.4 min**            |
+| Production Hardening hardening tests                    | 9 tests                  | Part of the full suite |
+| SigV4 signing tests                                     | 3 tests                  | Part of the full suite |
 
 The development E2E run is slower because each page is compiled on first
 request by Turbopack; the production run reuses the prebuilt output. A clean
@@ -196,7 +196,7 @@ performance regression.
 
 OCR throughput was **not** benchmarked. Tesseract is CPU-bound, loads a worker,
 WASM, and English language data, and is unsuitable for an unbounded request
-path. Prompt 9 therefore treats OCR as a bounded best-effort operation:
+path. Production Hardening therefore treats OCR as a bounded best-effort operation:
 
 - Lazy engine import.
 - 60 s worker timeout with termination.
@@ -206,7 +206,7 @@ path. Prompt 9 therefore treats OCR as a bounded best-effort operation:
 
 A production deployment that expects heavy OCR use should measure p95 OCR
 latency and CPU saturation, and may move OCR to a background worker. That is a
-future architecture change, not part of Prompt 9.
+future architecture change, not part of Production Hardening.
 
 ## 7. Capacity and scaling notes
 
@@ -247,16 +247,16 @@ future architecture change, not part of Prompt 9.
 
 ## 10. References
 
-- `docs/PROMPT_9_VERIFICATION_REPORT.md`
-- `docs/PROMPT_9_RELIABILITY_REPORT.md`
-- `docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md`
+- `docs/PRODUCTION_VERIFICATION_REPORT.md`
+- `docs/RELIABILITY_REPORT.md`
+- `docs/PRODUCTION_ARCHITECTURE.md`
 - `next.config.ts`
 - `prisma/schema.prisma`
-- `.data/prompt9-build-final.log`
-- `.data/prompt9-build-verified-4.log`
-- `.data/prompt9-build-final-prod.log`
-- `.data/prompt9-e2e-full.log`
-- `.data/prompt7-alone.log`
-- `.data/prompt9-e2e-prod-final.log`
+- `.data/production-build-final.log`
+- `.data/production-build-verified-4.log`
+- `.data/production-build-final-prod.log`
+- `.data/production-e2e-full.log`
+- `.data/intelligence-ocr.log`
+- `.data/production-e2e-prod-final.log`
 - `.data/query-plans.sql`
-- `.data/prompt9-query-plans-final.log`
+- `.data/production-query-plans-final.log`

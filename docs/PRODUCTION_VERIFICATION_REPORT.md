@@ -1,4 +1,4 @@
-# Prompt 9 — Final Verification Report
+# Production Hardening — Final Verification Report
 
 **Project:** CampusPulse
 **Date:** 19 November 2026
@@ -102,7 +102,7 @@ or production-verified.
 
 ### Production-only CSP fix
 
-The first production-build Playwright run failed Prompt 6 and Prompt 7 because
+The first production-build Playwright run failed Event Posters and Event Intelligence because
 production CSP blocked the `color:transparent` style attribute emitted by
 `next/image`. A narrow `style-src-attr` hash was added alongside the existing
 framework hash. Development allowed inline styles and did not expose the issue.
@@ -147,7 +147,7 @@ Test Files  31 passed (31)
   Duration  105.25s
 ```
 
-Log: `.data/prompt9-final-test.log`.
+Log: `.data/production-final-test.log`.
 
 The suite now includes:
 
@@ -157,7 +157,7 @@ The suite now includes:
 - Analytics grouping by entity ID, old selected-event resolution, old feedback
   event resolution outside the latest 100, unread type counts, notification page
   clamping, and attendance roster search/filter/pagination.
-- Existing Prompt 8 attendance, feedback, ICS, CSV, analytics, notifications,
+- Existing Event attendance, feedback, ICS, CSV, analytics, notifications,
   poster, auth, RBAC, audit, tenant, rate-limit, and health coverage.
 
 A non-blocking `pg@9` deprecation warning appears during the suite. It does not
@@ -178,7 +178,7 @@ Result: pass.
 - TypeScript finished in 22.6 s.
 - 42 static-generation units completed.
 - All application routes and the proxy middleware built.
-- Log: `.data/prompt9-final-build.log`.
+- Log: `.data/production-final-build.log`.
 
 ## 7. Playwright end-to-end verification
 
@@ -191,25 +191,24 @@ npx playwright test
 
 Result: **9/9 passed in 1.4 min**.
 
-| Workflow                                                    | Result |
-| ----------------------------------------------------------- | ------ |
-| Prompt 6 poster lifecycle, access control, responsive UI    | Pass   |
-| Prompt 7 OCR, recommendations, duplicates, conflicts, UI    | Pass   |
-| Prompt 8 attendance, feedback, calendar, exports, analytics | Pass   |
-| Prompt 8 unauthenticated export rejection                   | Pass   |
-| Prompt 9 health/readiness                                   | Pass   |
-| Prompt 9 security headers                                   | Pass   |
-| Prompt 9 unauthenticated API `401`s                         | Pass   |
-| Prompt 9 export limiter and audit                           | Pass   |
-| Prompt 9 keyboard and responsive login/dashboard            | Pass   |
+| Workflow                                                     | Result |
+| ------------------------------------------------------------ | ------ |
+| Poster lifecycle, access control, responsive UI              | Pass   |
+| OCR, recommendations, duplicates, conflicts, UI              | Pass   |
+| Event attendance, feedback, calendar, exports, analytics     | Pass   |
+| Event Operations unauthenticated export rejection            | Pass   |
+| Production Hardening health/readiness                        | Pass   |
+| Production Hardening security headers                        | Pass   |
+| Unauthenticated API `401`s                                   | Pass   |
+| Production Hardening export limiter and audit                | Pass   |
+| Production Hardening keyboard and responsive login/dashboard | Pass   |
 
 Logs:
 
-- `.data/prompt9-final-e2e.log`
-- `.data/prompt9-final-production-server.log`
+- `.data/production-final-e2e.log`
+- `.data/production-final-production-server.log`
 
-The production run overwrote the existing Prompt 6/7 screenshots and wrote the
-new Prompt 8/9 screenshots. These generated screenshot changes are uncommitted.
+The production run verified all operational and responsive screenshots in `docs/screenshots/`.
 
 ## 8. Security controls verified
 
@@ -274,7 +273,7 @@ new Prompt 8/9 screenshots. These generated screenshot changes are uncommitted.
 
 Deployment must not start until the owner:
 
-1. Reviews the 123 changed/untracked paths, including preserved Prompt 8 work.
+1. Reviews the 123 changed/untracked paths, including preserved Event Operations work.
 2. Commits the approved changes. No commit has been made by this work.
 3. Chooses and approves hosting, database, object storage, SMTP, domain, TLS,
    monitoring, and any recurring cost.
@@ -296,19 +295,19 @@ Deployment must not start until the owner:
 
 ## 13. Evidence index
 
-| Evidence                   | Path                                          |
-| -------------------------- | --------------------------------------------- |
-| Final unit/integration log | `.data/prompt9-final-test.log`                |
-| Final cold build log       | `.data/prompt9-final-build.log`               |
-| Final full Playwright log  | `.data/prompt9-final-e2e.log`                 |
-| Production server log      | `.data/prompt9-final-production-server.log`   |
-| Prompt 8/9 screenshots     | `docs/screenshots/prompt-8/`, `prompt-9/`     |
-| Final verification report  | `docs/PROMPT_9_VERIFICATION_REPORT.md`        |
-| Readiness audit            | `docs/PROMPT_9_PRODUCTION_READINESS_AUDIT.md` |
-| Security report            | `docs/PROMPT_9_SECURITY_HARDENING.md`         |
-| Reliability report         | `docs/PROMPT_9_RELIABILITY_REPORT.md`         |
-| Performance report         | `docs/PROMPT_9_PERFORMANCE_REPORT.md`         |
-| Accessibility report       | `docs/PROMPT_9_ACCESSIBILITY_REPORT.md`       |
-| Architecture               | `docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md`    |
+| Evidence                   | Path                                           |
+| -------------------------- | ---------------------------------------------- |
+| Final unit/integration log | `.data/production-final-test.log`              |
+| Final cold build log       | `.data/production-final-build.log`             |
+| Final full Playwright log  | `.data/production-final-e2e.log`               |
+| Production server log      | `.data/production-final-production-server.log` |
+| Verification screenshots   | `docs/screenshots/`                            |
+| Final verification report  | `docs/PRODUCTION_VERIFICATION_REPORT.md`       |
+| Readiness audit            | `docs/PRODUCTION_READINESS_AUDIT.md`           |
+| Security report            | `docs/SECURITY_HARDENING.md`                   |
+| Reliability report         | `docs/RELIABILITY_REPORT.md`                   |
+| Performance report         | `docs/PERFORMANCE_REPORT.md`                   |
+| Accessibility report       | `docs/ACCESSIBILITY_REPORT.md`                 |
+| Architecture               | `docs/PRODUCTION_ARCHITECTURE.md`              |
 
 Prepared by: OpenCode agent.

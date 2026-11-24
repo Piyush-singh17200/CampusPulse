@@ -1,4 +1,4 @@
-# Prompt 9 — Production Architecture
+# Production Hardening — Production Architecture
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
@@ -283,14 +283,14 @@ steps common to all shapes.
 - No Kubernetes requirement.
 - No public poster bucket.
 - No client-side analytics pipeline.
-- No background job system in Prompt 9.
+- No background job system in Production Hardening.
 - No change to the role model or tenant isolation design.
 
 ## 10. References
 
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_ENVIRONMENT_REFERENCE.md`
-- `docs/PROMPT_9_BACKUP_AND_RECOVERY.md`
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
-- `docs/PROMPT_9_SECURITY_HARDENING.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/ENVIRONMENT_REFERENCE.md`
+- `docs/BACKUP_AND_RECOVERY.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/SECURITY_HARDENING.md`
 - `docs/poster-storage.md`

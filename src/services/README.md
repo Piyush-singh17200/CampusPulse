@@ -1,8 +1,8 @@
 # Services
 
-Server-side domain services implemented in Prompt 3.1. These modules import
-`server-only`, use the centralized Prisma client, and are not exposed through
-public API routes yet.
+Server-side domain services for CampusPulse. These modules import
+`server-only`, use the centralized Prisma client, and enforce tenant isolation
+and authorization boundaries.
 
 - `authorization.ts`: loads the actor, role, college, and active club
   memberships from PostgreSQL; provides role/club assertions.
@@ -18,10 +18,6 @@ public API routes yet.
 
 Important boundary: `actorUserId` is supplied by a trusted server caller. The
 service loads role/college/membership from the database, so a caller cannot
-escalate by supplying a browser-provided role or tenant. Prompt 4 must bind this
-identity to an authenticated session and enforce route-level authorization before
+escalate by supplying a browser-provided role or tenant. The session layer binds this
+identity to an authenticated session and enforces route-level authorization before
 calling any service.
-
-No authentication, discovery, recommendation, OCR, or moderation-queue service
-is implemented in this phase. The future screens are specifications only; see
-`docs/future-screens.md`.

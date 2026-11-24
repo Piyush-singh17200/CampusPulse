@@ -1,11 +1,11 @@
-# Prompt 9 — Security Hardening Report
+# Production Hardening — Security Hardening Report
 
 **Project:** CampusPulse
 **Date:** 18 November 2026
-**Scope:** Prompt 9 security hardening and verification
+**Scope:** Production Hardening security hardening and verification
 **Status:** Implemented and verified locally; production deployment remains gated (see §8)
 
-This report records the security changes made in Prompt 9. It does not replace
+This report records the security changes made in Production Hardening. It does not replace
 the existing architecture and authorization documentation. The controlling
 design remains: every request is authenticated on the server, every query is
 tenant-scoped, and every privileged mutation writes an audit row.
@@ -22,9 +22,9 @@ assets are:
 - CSV and calendar exports, which aggregate personal data.
 - Audit records and administrative actions.
 
-The Prompt 9 review focused on abuse that does not require a code exploit:
+The Production Hardening review focused on abuse that does not require a code exploit:
 
-| Threat                                   | Example                                                                               | Prompt 9 response                                                                 |
+| Threat                                   | Example                                                                               | Production Hardening response                                                     |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Credential stuffing                      | Repeated login attempts against one email or many emails from one IP                  | Existing DB-backed login limits retained; verified                                |
 | Authenticated abuse                      | A valid club account repeatedly uploading, OCR-ing, exporting, or scanning attendance | New per-user DB-backed policies at action/route boundaries                        |
@@ -110,9 +110,9 @@ Examples:
 The metadata deliberately contains **no student names, roll numbers,
 departments, filenames, or file contents**. The row count is an integer and is
 safe to retain. The `EXPORT_DOWNLOADED` enum value was added by migration
-`prisma/migrations/20261118111909_prompt9_export_audit/migration.sql`.
+`prisma/migrations/20261118111909_export_audit/migration.sql`.
 
-Verification: `tests/e2e/prompt-9.spec.ts` downloads a club attendance CSV as
+Verification: `tests/e2e/production-hardening.spec.ts` downloads a club attendance CSV as
 the seeded club president, asserts the UTF-8 BOM and CSV header, and reads the
 audit row back from PostgreSQL. It also asserts that the limiter table received
 a row after the login window was cleared. The test cleans up its audit and
@@ -120,7 +120,7 @@ limiter rows.
 
 ## 4. OCR abuse controls
 
-Prompt 7 introduced Tesseract-based poster OCR. Prompt 9 adds:
+Event Intelligence introduced Tesseract-based poster OCR. Production Hardening adds:
 
 - `OCR_DEFAULT_TIMEOUT_MS = 60_000` in `src/server/ocr/constants.ts`.
 - A Tesseract worker timeout that terminates the worker instead of leaving it
@@ -187,7 +187,7 @@ check indefinitely.
 
 ## 7. Existing controls re-verified
 
-Prompt 9 did not weaken these controls:
+Production Hardening did not weaken these controls:
 
 - Argon2id password hashing.
 - Hashed, single-use password-reset tokens with expiry.
@@ -225,10 +225,10 @@ Prompt 9 did not weaken these controls:
 | Check                                           | Result                                                     |
 | ----------------------------------------------- | ---------------------------------------------------------- |
 | Full unit/integration suite                     | 31 files / 235 tests passed (105.25 s)                     |
-| Prompt 9 hardening tests                        | 9 tests in `tests/services/prompt-9-hardening.test.ts`     |
+| Production Hardening hardening tests            | 9 tests in `tests/services/production-hardening.test.ts`   |
 | SigV4 test vector and session-token test        | 3 tests in `tests/services/s3-signing.test.ts`             |
-| Prompt 9 E2E (development)                      | 5/5 passed (31.2 s)                                        |
-| Prompt 9 E2E (production build, final)          | 5/5 passed (11.1 s)                                        |
+| Hardening E2E (development)                     | 5/5 passed (31.2 s)                                        |
+| Hardening E2E (production build, final)         | 5/5 passed (11.1 s)                                        |
 | Full Playwright regression (production build)   | 9/9 passed (1.4 min)                                       |
 | Unauthenticated export/calendar/poster requests | `401` verified by E2E                                      |
 | Export audit and limiter rows                   | Verified end to end by E2E                                 |
@@ -236,17 +236,17 @@ Prompt 9 did not weaken these controls:
 | Health payload                                  | Verified to contain no connection string or `DATABASE_URL` |
 
 Commands and exact output are recorded in
-`docs/PROMPT_9_VERIFICATION_REPORT.md`.
+`docs/PRODUCTION_VERIFICATION_REPORT.md`.
 
 ## 10. References
 
-- `docs/PROMPT_9_PRODUCTION_READINESS_AUDIT.md`
-- `docs/PROMPT_9_RELIABILITY_REPORT.md`
-- `docs/PROMPT_9_DEPLOYMENT_GUIDE.md`
-- `docs/PROMPT_9_OPERATIONS_RUNBOOK.md`
+- `docs/PRODUCTION_READINESS_AUDIT.md`
+- `docs/RELIABILITY_REPORT.md`
+- `docs/DEPLOYMENT_GUIDE.md`
+- `docs/OPERATIONS_RUNBOOK.md`
 - `docs/poster-storage.md`
 - `src/server/auth/rate-limit.ts`
 - `src/server/exports/audit.ts`
 - `src/server/storage/s3-poster-storage.ts`
 - `src/app/api/health/route.ts`
-- `tests/e2e/prompt-9.spec.ts`
+- `tests/e2e/production-hardening.spec.ts`
