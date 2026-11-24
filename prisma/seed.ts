@@ -1,10 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { config as loadEnv } from "dotenv";
+import { hash } from "@node-rs/argon2";
 
 import { createDatabaseClient } from "../src/server/db/factory";
 import { assertDevelopmentDatabaseUrl, getDatabaseConfig } from "../src/server/db/config";
 import type {
   ClubStatus,
   EventStatus,
+  NotificationType,
   RegistrationStatus,
   UserRole,
 } from "../src/generated/prisma/enums";
@@ -32,8 +35,18 @@ const prisma = createDatabaseClient(getDatabaseConfig({ applicationName: "campus
 const now = new Date();
 const day = 24 * 60 * 60 * 1000;
 
-function daysFromNow(days: number, hours = 0): Date {
-  return new Date(now.getTime() + days * day + hours * 60 * 60 * 1000);
+function daysFromNow(days: number, hours = 10, minutes = 0): Date {
+  // Seed colleges use Asia/Kolkata. Build the date at a predictable local hour
+  // instead of inheriting the current clock time from whenever the seed runs.
+  const utc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + days,
+    hours,
+    minutes,
+  );
+
+  return new Date(utc - 5.5 * 60 * 60 * 1000);
 }
 
 async function upsertCollege(input: {
@@ -63,13 +76,29 @@ async function upsertCollege(input: {
   });
 }
 
+const DEMO_PASSWORD = "CampusPulse!2026";
+let demoPasswordHashPromise: Promise<string> | null = null;
+
+async function getDemoPasswordHash(): Promise<string> {
+  if (!demoPasswordHashPromise) {
+    demoPasswordHashPromise = hash(DEMO_PASSWORD, {
+      algorithm: 2,
+      memoryCost: 19_456,
+      timeCost: 2,
+      parallelism: 1,
+      outputLen: 32,
+    });
+  }
+  return demoPasswordHashPromise;
+}
+
 async function upsertUser(input: {
   email: string;
   name: string;
   role: UserRole;
   collegeId: string | null;
 }) {
-  return prisma.user.upsert({
+  const user = await prisma.user.upsert({
     where: { email: input.email },
     update: {
       name: input.name,
@@ -85,6 +114,31 @@ async function upsertUser(input: {
       status: "ACTIVE",
     },
   });
+
+  const passwordHash = await getDemoPasswordHash();
+  const existingAccount = await prisma.account.findFirst({
+    where: { userId: user.id, providerId: "credential" },
+    select: { id: true },
+  });
+
+  if (existingAccount) {
+    await prisma.account.update({
+      where: { id: existingAccount.id },
+      data: { password: passwordHash },
+    });
+  } else {
+    await prisma.account.create({
+      data: {
+        id: randomUUID(),
+        accountId: user.id,
+        providerId: "credential",
+        userId: user.id,
+        password: passwordHash,
+      },
+    });
+  }
+
+  return user;
 }
 
 async function upsertStudent(input: {
@@ -321,6 +375,35 @@ async function upsertRegistration(input: {
     },
     update: data,
     create: data,
+  });
+}
+
+async function upsertNotification(input: {
+  id: string;
+  collegeId: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  actionUrl: string;
+  readAt?: Date;
+  createdAt: Date;
+}) {
+  const data = {
+    collegeId: input.collegeId,
+    userId: input.userId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    actionUrl: input.actionUrl,
+    readAt: input.readAt ?? null,
+    createdAt: input.createdAt,
+  };
+
+  return prisma.notification.upsert({
+    where: { id: input.id },
+    update: data,
+    create: { id: input.id, ...data },
   });
 }
 
@@ -617,6 +700,23 @@ async function main() {
     venueAddress: "12 Campus Loop, Northfield",
     capacity: 80,
   });
+  const buildNight = await upsertEvent({
+    collegeId: northfield.id,
+    clubId: robotics.id,
+    createdById: roboticsPresident.id,
+    title: "Build Night: Line-Following Robots (Demo)",
+    slug: "build-night-line-following-robots",
+    summary:
+      "A hands-on build night for students curious about sensors and simple autonomous robots.",
+    description:
+      "A fictional build night for local development. Teams assemble a small line-following robot and test it on a tabletop course.",
+    status: "PUBLISHED",
+    startsAt: daysFromNow(7, 17),
+    endsAt: daysFromNow(7, 20),
+    venueName: "Northfield Makerspace",
+    venueAddress: "2 Workshop Lane, Northfield",
+    capacity: 35,
+  });
   const debateNight = await upsertEvent({
     collegeId: northfield.id,
     clubId: debate.id,
@@ -740,6 +840,7 @@ async function main() {
 
   for (const [event, categorySlugs] of [
     [roboticsExpo, ["academic", "career"]],
+    [buildNight, ["academic", "career"]],
     [debateNight, ["academic", "arts-culture"]],
     [filmNight, ["arts-culture", "community"]],
     [aiWorkshop, ["academic"]],
@@ -776,6 +877,12 @@ async function main() {
       collegeId: northfield.id,
       eventId: roboticsExpo.id,
       studentProfileId: dev.profile.id,
+      status: "CONFIRMED" as const,
+    },
+    {
+      collegeId: northfield.id,
+      eventId: debateNight.id,
+      studentProfileId: isha.profile.id,
       status: "CONFIRMED" as const,
     },
     {
@@ -834,6 +941,52 @@ async function main() {
     },
   ]) {
     await upsertRegistration(registration);
+  }
+
+  for (const notification of [
+    {
+      id: "00000000-0000-4000-8000-000000000101",
+      collegeId: northfield.id,
+      userId: isha.user.id,
+      type: "REGISTRATION_UPDATE" as const,
+      title: "Seat confirmed",
+      body: `You are registered for ${roboticsExpo.title}. We will remind you before it starts.`,
+      actionUrl: `/student/events/${roboticsExpo.id}`,
+      createdAt: daysFromNow(-1, 18),
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000102",
+      collegeId: northfield.id,
+      userId: isha.user.id,
+      type: "EVENT_REMINDER" as const,
+      title: "Film Under the Stars is coming up",
+      body: "Bring a blanket to the Northfield Quad Lawn. Your registration is confirmed.",
+      actionUrl: `/student/events/${filmNight.id}`,
+      readAt: daysFromNow(-2, 20),
+      createdAt: daysFromNow(-2, 19),
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000103",
+      collegeId: northfield.id,
+      userId: roboticsPresident.id,
+      type: "MODERATION_UPDATE" as const,
+      title: "Career Fair submitted for review",
+      body: "Northfield Career Fair is waiting for a college administrator decision.",
+      actionUrl: `/club/events/${careerFair.id}?club=${robotics.id}`,
+      createdAt: daysFromNow(-1, 9),
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000104",
+      collegeId: northfield.id,
+      userId: northfieldAdmin.id,
+      type: "MODERATION_UPDATE" as const,
+      title: "Event approval waiting",
+      body: "One event submission is ready for your review in the college approval queue.",
+      actionUrl: "/college/approvals",
+      createdAt: daysFromNow(-1, 8),
+    },
+  ]) {
+    await upsertNotification(notification);
   }
 
   const counts = await prisma.$transaction([

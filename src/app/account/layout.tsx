@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { SkipLink } from "@/components/ui/skip-link";
 import { logoutAction } from "@/features/auth/actions";
 import { siteConfig } from "@/config/site";
 import { auth } from "@/server/auth/auth";
@@ -40,6 +41,7 @@ export default async function AccountLayout({ children }: { children: ReactNode 
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
+      <SkipLink />
       <header className="border-b border-line/80 bg-canvas/90 backdrop-blur-md">
         <Container className="flex h-[4.5rem] items-center justify-between gap-4">
           <Link
@@ -64,7 +66,7 @@ export default async function AccountLayout({ children }: { children: ReactNode 
         </Container>
       </header>
 
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         <Container className="py-10 sm:py-14">{children}</Container>
       </main>
 

@@ -1,5 +1,7 @@
 import { extensionForMimeType } from "@/server/posters/image";
+import { RATE_LIMITS, enforceRateLimit } from "@/server/auth/rate-limit";
 import { getCurrentUser } from "@/server/auth/session";
+import { errorResponse } from "@/server/http/responses";
 import { getEventPosterForActor } from "@/services/posters";
 
 export const runtime = "nodejs";
@@ -26,6 +28,12 @@ export async function GET(
 
   if (!user) {
     return new Response(null, { status: 401, headers: NO_STORE_HEADERS });
+  }
+
+  try {
+    await enforceRateLimit(RATE_LIMITS.posterReadUser, user.id);
+  } catch (error) {
+    return errorResponse(error);
   }
 
   const { posterId } = await params;

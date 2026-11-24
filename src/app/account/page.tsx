@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { dashboardPathForRole } from "@/lib/roles";
 import { prisma } from "@/server/db/client";
 import { requireAuthenticatedUser } from "@/server/auth/session";
 
@@ -20,12 +21,17 @@ const roleLabels = {
 
 export default async function AccountPage() {
   const user = await requireAuthenticatedUser();
-  const college = user.collegeId
-    ? await prisma.college.findUnique({
+  let college: { name: string; shortName: string | null } | null = null;
+  if (user.collegeId) {
+    try {
+      college = await prisma.college.findUnique({
         where: { id: user.collegeId },
         select: { name: true, shortName: true },
-      })
-    : null;
+      });
+    } catch (error) {
+      console.error("Failed to load college details for account:", error);
+    }
+  }
 
   const sessionExpiry = new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
@@ -41,8 +47,14 @@ export default async function AccountPage() {
             Hello, {user.name.split(" ")[0] || "there"}.
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-            This is your secure CampusPulse account home. Role-specific workspaces will be added in
-            later phases.
+            This is your secure CampusPulse account home.{" "}
+            <Link
+              href={dashboardPathForRole(user.role)}
+              className="font-semibold text-forest underline-offset-4 hover:underline"
+            >
+              Open your role workspace
+            </Link>{" "}
+            to manage events, attendance, feedback, and analytics.
           </p>
         </div>
         <ButtonLink href="/" variant="outline" size="sm">

@@ -53,8 +53,8 @@ function EventDetail({ event }: { event: PreviewEvent }) {
         </div>
       </dl>
       <p className="mt-6 rounded-md border border-line bg-canvas/70 p-3 text-xs leading-5 text-muted">
-        This is an illustrative event for the product preview. Registration, saved events, and
-        notifications are planned for a later build phase.
+        This is an illustrative event for the product preview. Live events, registration, saved
+        events, and notifications are available in the signed-in student workspace.
       </p>
     </div>
   );
@@ -96,7 +96,7 @@ export function DiscoveryPreview({ compact = false, className }: DiscoveryPrevie
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">Development preview</Badge>
+            <Badge variant="outline">Interactive sample</Badge>
             <span className="hidden text-[10px] font-semibold text-muted sm:inline">
               Northfield University
             </span>
@@ -142,7 +142,7 @@ export function DiscoveryPreview({ compact = false, className }: DiscoveryPrevie
               Filters, calendar, and saved events
             </div>
             <p className="mt-2 text-xs leading-5 text-muted">
-              Interest matching and schedule awareness are part of the next product phase.
+              Filters, calendar, and saved events are live in the student workspace.
             </p>
           </aside>
 
@@ -205,7 +205,8 @@ export function DiscoveryPreview({ compact = false, className }: DiscoveryPrevie
 
             <p className="mt-4 flex items-center gap-1.5 text-[10px] leading-4 text-muted">
               <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-              Sample events are fictional and shown only to demonstrate the product direction.
+              Sample events are fictional and shown only to demonstrate the product. Create an
+              account to browse live campus events.
             </p>
           </div>
         </div>

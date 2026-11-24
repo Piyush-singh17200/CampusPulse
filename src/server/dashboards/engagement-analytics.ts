@@ -1,7 +1,7 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import type { EventStatus, RegistrationStatus } from "@/generated/prisma/enums";
-import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db/client";
 import {
   assertClubDashboard,
@@ -116,17 +116,69 @@ type EventRow = {
   status: EventStatus;
   clubId: string;
   capacity: number | null;
-  club: { name: string };
-  categories: { category: { name: string; slug: string } }[];
+  club: { id: string; name: string };
+  categories: { category: { id: string; name: string; slug: string } }[];
 };
+
+type MonthCount = { month: string; count: number };
 
 type EventMetrics = {
   events: EventRow[];
   registrationsByEvent: Map<string, Record<RegistrationStatus, number>>;
   feedbackByEvent: Map<string, { count: number; total: number }>;
-  registrationRows: { registeredAt: Date; checkedInAt: Date | null; status: RegistrationStatus }[];
+  registrationMonths: MonthCount[];
+  attendanceMonths: MonthCount[];
   timezone: string;
 };
+
+type MonthCountRow = { month: string; count: bigint | number };
+
+/**
+ * Monthly registration/attendance trends are aggregated in PostgreSQL rather
+ * than by loading every registration into Node. This keeps analytics complete
+ * for large events and colleges without a silent row cap.
+ */
+async function loadMonthlyTrend(
+  collegeId: string,
+  eventIds: string[],
+  timezone: string,
+  column: "registeredAt" | "checkedInAt",
+): Promise<MonthCount[]> {
+  if (!eventIds.length) {
+    return [];
+  }
+
+  const rows =
+    column === "registeredAt"
+      ? await prisma.$queryRaw<MonthCountRow[]>`
+          SELECT to_char(
+            date_trunc('month', ("registeredAt" AT TIME ZONE ${timezone})),
+            'YYYY-MM'
+          ) AS month,
+          count(*) AS count
+          FROM "event_registrations"
+          WHERE "collegeId" = ${collegeId}::uuid
+            AND "eventId" = ANY(${eventIds}::uuid[])
+          GROUP BY 1
+          ORDER BY 1
+        `
+      : await prisma.$queryRaw<MonthCountRow[]>`
+          SELECT to_char(
+            date_trunc('month', ("checkedInAt" AT TIME ZONE ${timezone})),
+            'YYYY-MM'
+          ) AS month,
+          count(*) AS count
+          FROM "event_registrations"
+          WHERE "collegeId" = ${collegeId}::uuid
+            AND "eventId" = ANY(${eventIds}::uuid[])
+            AND "status" = 'ATTENDED'
+            AND "checkedInAt" IS NOT NULL
+          GROUP BY 1
+          ORDER BY 1
+        `;
+
+  return rows.map((row) => ({ month: row.month, count: Number(row.count) }));
+}
 
 async function loadEventMetrics(
   collegeId: string,
@@ -135,7 +187,9 @@ async function loadEventMetrics(
   const where: Prisma.EventWhereInput = {
     collegeId,
     deletedAt: null,
-    startsAt: { gte: filters.fromDate, lte: filters.toDate },
+    // Selecting a specific event makes that event the scope, even when it falls
+    // outside the dashboard's default date window.
+    ...(filters.eventId ? {} : { startsAt: { gte: filters.fromDate, lte: filters.toDate } }),
     ...(filters.clubId ? { clubId: filters.clubId } : {}),
     ...(filters.eventId ? { id: filters.eventId } : {}),
     ...(filters.status ? { status: filters.status as EventStatus } : {}),
@@ -152,11 +206,12 @@ async function loadEventMetrics(
         status: true,
         clubId: true,
         capacity: true,
-        club: { select: { name: true } },
-        categories: { select: { category: { select: { name: true, slug: true } } } },
+        club: { select: { id: true, name: true } },
+        categories: {
+          select: { category: { select: { id: true, name: true, slug: true } } },
+        },
       },
       orderBy: { startsAt: "desc" },
-      take: 200,
     }),
     prisma.college.findFirst({
       where: { id: collegeId, deletedAt: null },
@@ -174,11 +229,9 @@ async function loadEventMetrics(
     registrationsByEvent.set(eventId, emptyStatusCounts());
   }
   const feedbackByEvent = new Map<string, { count: number; total: number }>();
-  let registrationRows: {
-    registeredAt: Date;
-    checkedInAt: Date | null;
-    status: RegistrationStatus;
-  }[] = [];
+  const timezone = college?.timezone ?? "Asia/Kolkata";
+  let registrationMonths: MonthCount[] = [];
+  let attendanceMonths: MonthCount[] = [];
 
   if (eventIds.length) {
     const registrationCounts = await prisma.eventRegistration.groupBy({
@@ -204,20 +257,19 @@ async function loadEventMetrics(
       feedbackByEvent.set(row.eventId, current);
     }
 
-    registrationRows = await prisma.eventRegistration.findMany({
-      where: { collegeId, eventId: { in: eventIds } },
-      select: { registeredAt: true, checkedInAt: true, status: true },
-      orderBy: { registeredAt: "asc" },
-      take: 5_000,
-    });
+    [registrationMonths, attendanceMonths] = await Promise.all([
+      loadMonthlyTrend(collegeId, eventIds, timezone, "registeredAt"),
+      loadMonthlyTrend(collegeId, eventIds, timezone, "checkedInAt"),
+    ]);
   }
 
   return {
     events,
     registrationsByEvent,
     feedbackByEvent,
-    registrationRows,
-    timezone: college?.timezone ?? "Asia/Kolkata",
+    registrationMonths,
+    attendanceMonths,
+    timezone,
   };
 }
 
@@ -316,25 +368,31 @@ function filterOptionsForEvents(events: EventRow[], timezone: string) {
       timezone,
     ),
     categoryBreakdown: (() => {
-      const categories = new Map<string, number>();
+      // Group by ID, not display name. Two categories may share a name, and the
+      // UI must not merge their counts.
+      const categories = new Map<string, { name: string; count: number }>();
       for (const event of events) {
         for (const item of event.categories) {
-          categories.set(item.category.name, (categories.get(item.category.name) ?? 0) + 1);
+          const current = categories.get(item.category.id) ?? {
+            name: item.category.name,
+            count: 0,
+          };
+          current.count += 1;
+          categories.set(item.category.id, current);
         }
       }
-      return [...categories.entries()]
-        .map(([name, count]) => ({ name, count }))
-        .sort((left, right) => right.count - left.count);
+      return [...categories.values()].sort((left, right) => right.count - left.count);
     })(),
     clubActivity: (() => {
-      const clubs = new Map<string, number>();
+      // Clubs are separate entities even when names collide. Use the club ID as
+      // the grouping key and retain the display name for the label.
+      const clubs = new Map<string, { name: string; count: number }>();
       for (const event of events) {
-        clubs.set(event.club.name, (clubs.get(event.club.name) ?? 0) + 1);
+        const current = clubs.get(event.club.id) ?? { name: event.club.name, count: 0 };
+        current.count += 1;
+        clubs.set(event.club.id, current);
       }
-      return [...clubs.entries()]
-        .map(([name, count]) => ({ name, count }))
-        .sort((left, right) => right.count - left.count)
-        .slice(0, 10);
+      return [...clubs.values()].sort((left, right) => right.count - left.count).slice(0, 10);
     })(),
   };
 }
@@ -376,7 +434,7 @@ export async function getClubEngagementAnalytics(
   assertClubDashboard(actor);
   const collegeId = actor.collegeId!;
   const ids = managedClubIds(actor);
-  const [clubs, categories, eventOptions] = await Promise.all([
+  const [clubs, categories] = await Promise.all([
     prisma.club.findMany({
       where: { collegeId, id: { in: ids }, deletedAt: null },
       select: { id: true, name: true, slug: true },
@@ -386,12 +444,6 @@ export async function getClubEngagementAnalytics(
       where: { collegeId, isActive: true },
       select: { id: true, name: true, slug: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.event.findMany({
-      where: { collegeId, clubId: { in: ids }, deletedAt: null },
-      select: { id: true, title: true, startsAt: true, status: true, clubId: true },
-      orderBy: { startsAt: "desc" },
-      take: 100,
     }),
   ]);
 
@@ -410,12 +462,49 @@ export async function getClubEngagementAnalytics(
       clubs,
       club: null,
       categories,
-      eventOptions,
+      eventOptions: [] as {
+        id: string;
+        title: string;
+        startsAt: Date;
+        status: EventStatus;
+        clubId: string;
+      }[],
       ...emptyClubAnalytics(normalized),
     };
   }
 
-  const metrics = await loadEventMetrics(collegeId, normalized);
+  const [initialEventOptions, metrics] = await Promise.all([
+    prisma.event.findMany({
+      where: { collegeId, clubId: club.id, deletedAt: null },
+      select: { id: true, title: true, startsAt: true, status: true, clubId: true },
+      orderBy: { startsAt: "desc" },
+      take: 100,
+    }),
+    loadEventMetrics(collegeId, normalized),
+  ]);
+  let eventOptions = initialEventOptions;
+
+  // An event selected from an old link may fall outside the latest 100 options.
+  // Add it explicitly so the filter reflects the selected scope instead of
+  // silently dropping or rejecting it.
+  if (normalized.eventId && !eventOptions.some((event) => event.id === normalized.eventId)) {
+    const selectedEvent = await prisma.event.findFirst({
+      where: {
+        id: normalized.eventId,
+        collegeId,
+        clubId: club.id,
+        deletedAt: null,
+      },
+      select: { id: true, title: true, startsAt: true, status: true, clubId: true },
+    });
+
+    if (!selectedEvent) {
+      throw new TenantIsolationError();
+    }
+
+    eventOptions = [selectedEvent, ...eventOptions];
+  }
+
   const summary = summarize(metrics);
   const breakdown = summary.breakdown;
   const feedbackRows = await prisma.eventFeedback.groupBy({
@@ -442,16 +531,8 @@ export async function getClubEngagementAnalytics(
     })),
     eventBreakdown: breakdown,
     ...filterOptionsForEvents(metrics.events, metrics.timezone),
-    registrationMonths: monthSeries(
-      metrics.registrationRows.map((row) => ({ date: row.registeredAt })),
-      metrics.timezone,
-    ),
-    attendanceMonths: monthSeries(
-      metrics.registrationRows
-        .filter((row) => row.status === "ATTENDED" && row.checkedInAt)
-        .map((row) => ({ date: row.checkedInAt! })),
-      metrics.timezone,
-    ),
+    registrationMonths: metrics.registrationMonths,
+    attendanceMonths: metrics.attendanceMonths,
     feedbackDistribution: [1, 2, 3, 4, 5].map((rating) => ({
       rating,
       count: feedbackRows.find((row) => row.rating === rating)?._count._all ?? 0,
@@ -504,7 +585,7 @@ export async function getCollegeEngagementAnalytics(
 ) {
   const collegeId = assertCollegeDashboard(actor);
   const normalized = normalizeAnalyticsFilters(filters);
-  const [college, clubs, categories, eventOptions] = await Promise.all([
+  const [college, clubs, categories, initialEventOptions] = await Promise.all([
     prisma.college.findFirst({
       where: { id: collegeId, deletedAt: null },
       select: { id: true, name: true, shortName: true, timezone: true },
@@ -526,9 +607,32 @@ export async function getCollegeEngagementAnalytics(
       take: 100,
     }),
   ]);
+  let eventOptions = initialEventOptions;
 
   if (!college) {
     throw new TenantIsolationError();
+  }
+
+  if (normalized.clubId && !clubs.some((club) => club.id === normalized.clubId)) {
+    throw new TenantIsolationError();
+  }
+
+  if (normalized.eventId && !eventOptions.some((event) => event.id === normalized.eventId)) {
+    const selectedEvent = await prisma.event.findFirst({
+      where: {
+        id: normalized.eventId,
+        collegeId,
+        deletedAt: null,
+        ...(normalized.clubId ? { clubId: normalized.clubId } : {}),
+      },
+      select: { id: true, title: true, startsAt: true, status: true, clubId: true },
+    });
+
+    if (!selectedEvent) {
+      throw new TenantIsolationError();
+    }
+
+    eventOptions = [selectedEvent, ...eventOptions];
   }
 
   const metrics = await loadEventMetrics(collegeId, normalized);
@@ -561,16 +665,8 @@ export async function getCollegeEngagementAnalytics(
     })),
     eventBreakdown: summary.breakdown,
     ...filterOptionsForEvents(metrics.events, metrics.timezone),
-    registrationMonths: monthSeries(
-      metrics.registrationRows.map((row) => ({ date: row.registeredAt })),
-      metrics.timezone,
-    ),
-    attendanceMonths: monthSeries(
-      metrics.registrationRows
-        .filter((row) => row.status === "ATTENDED" && row.checkedInAt)
-        .map((row) => ({ date: row.checkedInAt! })),
-      metrics.timezone,
-    ),
+    registrationMonths: metrics.registrationMonths,
+    attendanceMonths: metrics.attendanceMonths,
     feedbackDistribution: [1, 2, 3, 4, 5].map((rating) => ({
       rating,
       count: feedbackRows.find((row) => row.rating === rating)?._count._all ?? 0,
@@ -593,6 +689,16 @@ export async function getPlatformEngagementAnalytics(
 ) {
   assertPlatformDashboard(actor);
   const normalized = normalizeAnalyticsFilters(filters);
+  const eventWhere: Prisma.EventWhereInput = {
+    deletedAt: null,
+    startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
+    ...(normalized.eventId ? { id: normalized.eventId } : {}),
+    ...(normalized.clubId ? { clubId: normalized.clubId } : {}),
+    ...(normalized.status ? { status: normalized.status as EventStatus } : {}),
+    ...(normalized.category
+      ? { categories: { some: { category: { slug: normalized.category } } } }
+      : {}),
+  };
 
   const [
     collegeCount,
@@ -600,64 +706,52 @@ export async function getPlatformEngagementAnalytics(
     eventStatusRows,
     registrationStatusRows,
     feedbackAggregate,
-    events,
-    registrations,
+    eventRows,
+    registrationRows,
   ] = await Promise.all([
     prisma.college.count({ where: { deletedAt: null, status: "ACTIVE" } }),
     prisma.user.count({ where: { deletedAt: null, status: "ACTIVE" } }),
     prisma.event.groupBy({
       by: ["status"],
-      where: {
-        deletedAt: null,
-        startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
-        ...(normalized.eventId ? { id: normalized.eventId } : {}),
-        ...(normalized.clubId ? { clubId: normalized.clubId } : {}),
-        ...(normalized.status ? { status: normalized.status as EventStatus } : {}),
-      },
+      where: eventWhere,
       _count: { _all: true },
     }),
     prisma.eventRegistration.groupBy({
       by: ["status"],
-      where: {
-        event: {
-          deletedAt: null,
-          startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
-        },
-      },
+      where: { event: eventWhere },
       _count: { _all: true },
     }),
     prisma.eventFeedback.aggregate({
       where: {
         moderationStatus: "VISIBLE",
-        event: {
-          deletedAt: null,
-          startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
-        },
+        event: eventWhere,
       },
       _avg: { rating: true },
       _count: { _all: true },
     }),
     prisma.event.findMany({
-      where: {
-        deletedAt: null,
-        startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
+      where: eventWhere,
+      select: {
+        startsAt: true,
+        collegeId: true,
+        college: { select: { id: true, name: true } },
       },
-      select: { startsAt: true, collegeId: true, college: { select: { name: true } } },
       orderBy: { startsAt: "asc" },
-      take: 5_000,
+      take: 5_001,
     }),
     prisma.eventRegistration.findMany({
-      where: {
-        event: {
-          deletedAt: null,
-          startsAt: { gte: normalized.fromDate, lte: normalized.toDate },
-        },
-      },
+      where: { event: eventWhere },
       select: { registeredAt: true, checkedInAt: true, status: true },
       orderBy: { registeredAt: "asc" },
-      take: 5_000,
+      take: 5_001,
     }),
   ]);
+  const eventTrendsTruncated = eventRows.length > 5_000;
+  const registrationTrendsTruncated = registrationRows.length > 5_000;
+  const events = eventTrendsTruncated ? eventRows.slice(0, 5_000) : eventRows;
+  const registrations = registrationTrendsTruncated
+    ? registrationRows.slice(0, 5_000)
+    : registrationRows;
 
   const statusCounts = Object.fromEntries(
     eventStatusRows.map((row) => [row.status, row._count._all]),
@@ -672,9 +766,15 @@ export async function getPlatformEngagementAnalytics(
   const eligible =
     (registrationCounts.CONFIRMED ?? 0) + attended + (registrationCounts.NO_SHOW ?? 0);
   const registrationTotal = registrationStatusRows.reduce((sum, row) => sum + row._count._all, 0);
-  const collegeActivity = new Map<string, number>();
+  const collegeActivity = new Map<string, { id: string; name: string; count: number }>();
   for (const event of events) {
-    collegeActivity.set(event.college.name, (collegeActivity.get(event.college.name) ?? 0) + 1);
+    const current = collegeActivity.get(event.college.id) ?? {
+      id: event.college.id,
+      name: event.college.name,
+      count: 0,
+    };
+    current.count += 1;
+    collegeActivity.set(event.college.id, current);
   }
 
   return {
@@ -712,10 +812,12 @@ export async function getPlatformEngagementAnalytics(
         .map((row) => ({ date: row.checkedInAt! })),
       "UTC",
     ),
-    collegeActivity: [...collegeActivity.entries()]
-      .map(([name, count]) => ({ name, count }))
+    collegeActivity: [...collegeActivity.values()]
       .sort((left, right) => right.count - left.count)
       .slice(0, 10),
+    collegeActivityTruncated: eventTrendsTruncated,
+    eventTrendsTruncated,
+    registrationTrendsTruncated,
     filters: normalized,
   };
 }
@@ -728,12 +830,22 @@ export async function getClubAttendanceExport(
   assertClubDashboard(actor);
   const collegeId = actor.collegeId!;
 
+  if (!uuidSchema.safeParse(clubId).success || !uuidSchema.safeParse(eventId).success) {
+    throw new TenantIsolationError();
+  }
+
   if (!managedClubIds(actor).includes(clubId)) {
     throw new TenantIsolationError();
   }
 
   const event = await prisma.event.findFirst({
-    where: { id: eventId, clubId, collegeId, deletedAt: null },
+    where: {
+      id: eventId,
+      clubId,
+      collegeId,
+      deletedAt: null,
+      status: { in: ["PUBLISHED", "COMPLETED"] },
+    },
     select: { id: true, title: true, startsAt: true, endsAt: true },
   });
 
@@ -756,7 +868,6 @@ export async function getClubAttendanceExport(
       },
     },
     orderBy: [{ studentProfile: { user: { name: "asc" } } }, { id: "asc" }],
-    take: 10_000,
   });
 
   return { event, registrations };

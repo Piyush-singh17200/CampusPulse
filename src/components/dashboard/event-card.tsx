@@ -106,7 +106,9 @@ export function DashboardEventCard({
             <UsersRound aria-hidden="true" className="size-3.5 shrink-0 text-forest" />
             {typeof activeCount === "number"
               ? `${activeCount} confirmed${event.capacity ? ` · capacity ${event.capacity}` : ""}`
-              : `${event._count.registrations} registrations${event.capacity ? ` · capacity ${event.capacity}` : ""}`}
+              : `${event._count.registrations} ${
+                  event._count.registrations === 1 ? "registration" : "registrations"
+                }${event.capacity ? ` · capacity ${event.capacity}` : ""}`}
           </p>
         </div>
 

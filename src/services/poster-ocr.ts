@@ -17,10 +17,13 @@ import {
   DomainError,
   InvalidInputError,
   InvalidTransitionError,
+  RateLimitedError,
 } from "@/server/errors";
 import { validatePosterImage } from "@/server/posters/image";
+import { acquireOcrSlot } from "@/server/ocr/concurrency";
+import { OCR_DEFAULT_TIMEOUT_MS } from "@/server/ocr/constants";
 import { extractPosterFields, type OcrSuggestion, type OcrWord } from "@/server/ocr/extract";
-import { recognizePosterImage, type OcrEngine } from "@/server/ocr/tesseract-engine";
+import type { OcrEngine } from "@/server/ocr/tesseract-engine";
 import { getPosterStorage, type PosterStorage } from "@/server/storage/poster-storage";
 import { zonedDateString, zonedDateTimeToUtc, zonedTimeString } from "@/lib/timezone";
 import {
@@ -85,6 +88,25 @@ const applyOcrSchema = z.object({
 });
 
 const editableStatuses = new Set(["DRAFT", "REJECTED"]);
+
+/**
+ * A failed poster may be retried, but not immediately. The cooldown prevents a
+ * tight retry loop from turning one bad image into unbounded Tesseract work.
+ */
+export const OCR_FAILURE_RETRY_COOLDOWN_MS = 60_000;
+
+/**
+ * The engine applies its own deadline. This backstop covers injected engines
+ * and any future adapter that ignores the option.
+ */
+const OCR_BACKSTOP_TIMEOUT_MS = OCR_DEFAULT_TIMEOUT_MS + 5_000;
+
+/**
+ * A claim older than this cannot still be running under the normal worker
+ * deadline and backstop. It is therefore safe to recover after a process crash
+ * or an interrupted failure write.
+ */
+export const OCR_STALE_CLAIM_MS = OCR_BACKSTOP_TIMEOUT_MS + 60_000;
 
 export type PosterOcrReview = {
   poster: {
@@ -222,7 +244,44 @@ function safeOcrError(error: unknown): string {
     return error.message.slice(0, 500);
   }
 
+  if (error instanceof DomainError && error.code === "OCR_TIMEOUT") {
+    return error.message.slice(0, 500);
+  }
+
   return "The poster could not be processed. Try again or enter the event details manually.";
+}
+
+async function runOcrWithDeadline(
+  engine: OcrEngine,
+  bytes: Buffer,
+  timeoutMs = OCR_BACKSTOP_TIMEOUT_MS,
+): Promise<{ text: string; words: OcrWord[]; confidence: number | null }> {
+  const engineTimeoutMs = Math.min(OCR_DEFAULT_TIMEOUT_MS, timeoutMs);
+  const work = engine(bytes, { timeoutMs: engineTimeoutMs });
+  // If the backstop wins, the engine may still reject later. Attach a handler
+  // so that late failure is not reported as an unhandled rejection.
+  work.catch(() => undefined);
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new DomainError(
+          "OCR_TIMEOUT",
+          "Poster analysis took too long. Try a smaller or clearer image.",
+          504,
+        ),
+      );
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 async function markOcrFailed(
@@ -327,14 +386,14 @@ export async function getPosterOcrReviewForEvent(
 export async function processPosterOcr(
   actor: AuthenticatedActor,
   input: unknown,
-  dependencies: { engine?: OcrEngine; storage?: PosterStorage } = {},
+  dependencies: { engine?: OcrEngine; storage?: PosterStorage; ocrTimeoutMs?: number } = {},
 ): Promise<{
   status: PosterOcrStatus;
   error: string | null;
   fields: OcrSuggestion[];
 }> {
   const data = parseServiceInput(processOcrSchema, input);
-  const poster = await loadPosterForManagement(actor, data.posterId);
+  let poster = await loadPosterForManagement(actor, data.posterId);
 
   if (poster.ocrStatus === "COMPLETED") {
     const review = await loadReview(poster.id);
@@ -353,24 +412,85 @@ export async function processPosterOcr(
   }
 
   if (poster.ocrStatus === "PROCESSING" || poster.ocrStatus === "PENDING") {
-    return { status: poster.ocrStatus, error: null, fields: [] };
+    const claimAgeMs = poster.ocrStartedAt
+      ? Date.now() - poster.ocrStartedAt.getTime()
+      : Number.POSITIVE_INFINITY;
+    const stale = poster.ocrStatus === "PENDING" || claimAgeMs >= OCR_STALE_CLAIM_MS;
+
+    if (!stale) {
+      return { status: poster.ocrStatus, error: null, fields: [] };
+    }
+
+    // The worker is bounded by the engine deadline and service backstop. A
+    // claim older than OCR_STALE_CLAIM_MS cannot still be running normally, so
+    // recover it after a crash or an interrupted failure-state write.
+    const recovered = await prisma.eventPoster.updateMany({
+      where: {
+        id: poster.id,
+        collegeId: poster.collegeId,
+        ocrStatus: poster.ocrStatus,
+        ocrStartedAt: poster.ocrStartedAt,
+      },
+      data: {
+        ocrStatus: "FAILED",
+        ocrError:
+          "Poster analysis was interrupted before it finished. Try again or enter the event details manually.",
+        ocrCompletedAt: poster.ocrStartedAt ?? new Date(0),
+      },
+    });
+
+    if (recovered.count !== 1) {
+      const current = await prisma.eventPoster.findUniqueOrThrow({
+        where: { id: poster.id },
+        select: { ocrStatus: true, ocrError: true },
+      });
+      return { status: current.ocrStatus, error: current.ocrError, fields: [] };
+    }
+
+    poster = {
+      ...poster,
+      ocrStatus: "FAILED",
+      ocrError:
+        "Poster analysis was interrupted before it finished. Try again or enter the event details manually.",
+      ocrCompletedAt: poster.ocrStartedAt ?? new Date(0),
+    };
   }
 
-  const claimed = await prisma.eventPoster.updateMany({
-    where: {
-      id: poster.id,
-      collegeId: poster.collegeId,
-      ocrStatus: { in: ["NOT_REQUESTED", "FAILED"] },
-    },
-    data: {
-      ocrStatus: "PROCESSING",
-      ocrStartedAt: new Date(),
-      ocrCompletedAt: null,
-      ocrError: null,
-    },
-  });
+  if (poster.ocrStatus === "FAILED" && poster.ocrCompletedAt) {
+    const retryAt = poster.ocrCompletedAt.getTime() + OCR_FAILURE_RETRY_COOLDOWN_MS;
+
+    if (Date.now() < retryAt) {
+      throw new RateLimitedError(
+        Math.max(1, Math.ceil((retryAt - Date.now()) / 1_000)),
+        "Poster analysis recently failed. Wait a moment before trying again.",
+      );
+    }
+  }
+
+  const releaseOcrSlot = await acquireOcrSlot();
+  let claimed: { count: number };
+
+  try {
+    claimed = await prisma.eventPoster.updateMany({
+      where: {
+        id: poster.id,
+        collegeId: poster.collegeId,
+        ocrStatus: { in: ["NOT_REQUESTED", "FAILED"] },
+      },
+      data: {
+        ocrStatus: "PROCESSING",
+        ocrStartedAt: new Date(),
+        ocrCompletedAt: null,
+        ocrError: null,
+      },
+    });
+  } catch (error) {
+    releaseOcrSlot();
+    throw error;
+  }
 
   if (claimed.count !== 1) {
+    releaseOcrSlot();
     const current = await prisma.eventPoster.findUniqueOrThrow({
       where: { id: poster.id },
       select: { ocrStatus: true, ocrError: true },
@@ -388,9 +508,12 @@ export async function processPosterOcr(
 
     validatePosterImage(bytes);
 
-    const engine = dependencies.engine ?? recognizePosterImage;
-    const recognized: { text: string; words: OcrWord[]; confidence: number | null } =
-      await engine(bytes);
+    // Load Tesseract only when OCR is actually requested. Importing the engine
+    // eagerly pulls the worker, WASM, and language data into every build worker
+    // and server route that imports the dashboard actions.
+    const engine =
+      dependencies.engine ?? (await import("@/server/ocr/tesseract-engine")).recognizePosterImage;
+    const recognized = await runOcrWithDeadline(engine, bytes, dependencies.ocrTimeoutMs);
 
     if (recognized.text.replace(/\s/g, "").length < 3) {
       throw new InvalidInputError("No readable text was found in this poster.");
@@ -458,6 +581,8 @@ export async function processPosterOcr(
   } catch (error) {
     const message = await markOcrFailed(actor, poster, error);
     return { status: "FAILED", error: message, fields: [] };
+  } finally {
+    releaseOcrSlot();
   }
 }
 

@@ -11,15 +11,15 @@ export const metadata: Metadata = {
 };
 
 const navItems: DashboardNavItem[] = [
-  { href: "/college", label: "Overview", icon: "overview", exact: true },
-  { href: "/college/events", label: "Events", icon: "events" },
-  { href: "/college/approvals", label: "Approvals", icon: "attendance" },
-  { href: "/college/clubs", label: "Clubs", icon: "clubs" },
-  { href: "/college/users", label: "Users", icon: "users" },
-  { href: "/college/feedback", label: "Feedback", icon: "feedback" },
-  { href: "/college/analytics", label: "Analytics", icon: "analytics" },
-  { href: "/college/audit-logs", label: "Audit logs", icon: "audit" },
-  { href: "/college/settings", label: "Settings", icon: "settings" },
+  { href: "/college", label: "Overview", icon: "overview", exact: true, group: "Today" },
+  { href: "/college/events", label: "Events", icon: "events", group: "Moderation" },
+  { href: "/college/approvals", label: "Approvals", icon: "attendance", group: "Moderation" },
+  { href: "/college/clubs", label: "Clubs", icon: "clubs", group: "Moderation" },
+  { href: "/college/users", label: "Users", icon: "users", group: "Moderation" },
+  { href: "/college/feedback", label: "Feedback", icon: "feedback", group: "Insight & control" },
+  { href: "/college/analytics", label: "Analytics", icon: "analytics", group: "Insight & control" },
+  { href: "/college/audit-logs", label: "Audit logs", icon: "audit", group: "Insight & control" },
+  { href: "/college/settings", label: "Settings", icon: "settings", group: "Insight & control" },
 ];
 
 export default async function CollegeLayout({ children }: { children: ReactNode }) {

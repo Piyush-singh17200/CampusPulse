@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { EventStatus, NotificationType, RegistrationStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db/client";
 import type { AuthenticatedActor } from "@/server/auth/types";
+import { env } from "@/config/env";
 import {
   assertCollegeDashboard,
   assertClubDashboard,
@@ -23,6 +24,7 @@ import {
   getPendingDuplicateReviewsForCollege,
   type DuplicateReview,
 } from "@/services/duplicate-events";
+import { uuidSchema } from "@/services/validation";
 
 import {
   eventDetailSelect,
@@ -112,6 +114,15 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
       saved: [] as DashboardEvent[],
       counts: { registered: 0, upcoming: 0, attended: 0, cancelled: 0, saved: 0 },
       unreadNotifications: 0,
+      latestNotifications: [] as {
+        id: string;
+        title: string;
+        body: string;
+        actionUrl: string | null;
+        readAt: Date | null;
+        createdAt: Date;
+        type: NotificationType;
+      }[],
     };
   }
 
@@ -127,6 +138,7 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
     cancelledCount,
     savedCount,
     unreadNotifications,
+    latestNotifications,
   ] = await Promise.all([
     prisma.eventRegistration.findMany({
       where: {
@@ -170,27 +182,59 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
       take: 4,
     }),
     prisma.eventRegistration.count({
-      where: { collegeId: college.id, studentProfileId: profile.id },
+      where: {
+        collegeId: college.id,
+        studentProfileId: profile.id,
+        event: { deletedAt: null },
+      },
     }),
     prisma.eventRegistration.count({
       where: {
         collegeId: college.id,
         studentProfileId: profile.id,
         status: "CONFIRMED",
-        event: { startsAt: { gte: now }, status: "PUBLISHED" },
+        event: { startsAt: { gte: now }, status: "PUBLISHED", deletedAt: null },
       },
     }),
     prisma.eventRegistration.count({
-      where: { collegeId: college.id, studentProfileId: profile.id, status: "ATTENDED" },
+      where: {
+        collegeId: college.id,
+        studentProfileId: profile.id,
+        status: "ATTENDED",
+        event: { deletedAt: null },
+      },
     }),
     prisma.eventRegistration.count({
-      where: { collegeId: college.id, studentProfileId: profile.id, status: "CANCELLED" },
+      where: {
+        collegeId: college.id,
+        studentProfileId: profile.id,
+        status: "CANCELLED",
+        event: { deletedAt: null },
+      },
     }),
     prisma.savedEvent.count({
-      where: { collegeId: college.id, studentProfileId: profile.id },
+      where: {
+        collegeId: college.id,
+        studentProfileId: profile.id,
+        event: { deletedAt: null },
+      },
     }),
     prisma.notification.count({
       where: { collegeId: college.id, userId: actor.id, readAt: null },
+    }),
+    prisma.notification.findMany({
+      where: { collegeId: college.id, userId: actor.id },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        body: true,
+        actionUrl: true,
+        readAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 3,
     }),
   ]);
 
@@ -223,6 +267,7 @@ export async function getStudentDashboard(actor: AuthenticatedActor) {
       saved: savedCount,
     },
     unreadNotifications,
+    latestNotifications,
   };
 }
 
@@ -408,7 +453,11 @@ export async function getStudentRegistrations(actor: AuthenticatedActor) {
 
   const now = new Date();
   const registrations = await prisma.eventRegistration.findMany({
-    where: { collegeId: college.id, studentProfileId: profile.id },
+    where: {
+      collegeId: college.id,
+      studentProfileId: profile.id,
+      event: { deletedAt: null },
+    },
     select: {
       id: true,
       status: true,
@@ -503,6 +552,7 @@ export async function getStudentCalendar(actor: AuthenticatedActor) {
       collegeId: college.id,
       studentProfileId: profile.id,
       status: { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+      event: { deletedAt: null },
     },
     select: {
       id: true,
@@ -545,7 +595,7 @@ const NOTIFICATION_TYPES = new Set<NotificationType>([
 ]);
 
 function safeNotificationActionUrl(value: string | null): string | null {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
     return null;
   }
 
@@ -584,7 +634,7 @@ export async function getStudentNotifications(
       ? (filters.type as NotificationType)
       : null;
   const pageSize = Math.min(Math.max(filters.pageSize ?? 10, 1), 50);
-  const page = Math.max(filters.page ?? 1, 1);
+  const requestedPage = Math.max(filters.page ?? 1, 1);
   const where: Prisma.NotificationWhereInput = {
     collegeId: college.id,
     userId: actor.id,
@@ -592,22 +642,28 @@ export async function getStudentNotifications(
     ...(type ? { type } : {}),
   };
 
-  const [notifications, unread, total, typeCounts] = await Promise.all([
-    prisma.notification.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+  const [unread, total, typeCounts] = await Promise.all([
     prisma.notification.count({ where: { collegeId: college.id, userId: actor.id, readAt: null } }),
     prisma.notification.count({ where }),
     prisma.notification.groupBy({
       by: ["type"],
-      where: { collegeId: college.id, userId: actor.id },
+      where: {
+        collegeId: college.id,
+        userId: actor.id,
+        ...(unreadOnly ? { readAt: null } : {}),
+      },
       _count: { _all: true },
       orderBy: { type: "asc" },
     }),
   ]);
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const notifications = await prisma.notification.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
 
   return {
     notifications: notifications.map((notification) => ({
@@ -618,7 +674,7 @@ export async function getStudentNotifications(
     total,
     page,
     pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    totalPages,
     filters: { filter: unreadOnly ? "unread" : "all", type: type ?? "" },
     typeCounts: typeCounts.map((row) => ({ type: row.type, count: row._count._all })),
   };
@@ -958,61 +1014,170 @@ export async function getClubRegistrations(
   return { ...workspace, events, selectedEvent, registrations, counts };
 }
 
+export type ClubAttendanceFilters = {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 export async function getClubAttendance(
   actor: AuthenticatedActor,
   requestedClubId?: string,
   eventId?: string,
+  filters: ClubAttendanceFilters = {},
 ) {
   const workspace = await getClubWorkspace(actor, requestedClubId);
 
   if (!workspace.club) {
     return {
       ...workspace,
-      events: [] as { id: string; title: string; startsAt: Date; status: EventStatus }[],
+      events: [] as {
+        id: string;
+        title: string;
+        summary: string | null;
+        startsAt: Date;
+        endsAt: Date;
+        venueName: string;
+        venueAddress: string | null;
+        isOnline: boolean;
+        status: EventStatus;
+      }[],
       selectedEvent: null,
       registrations: [],
       counts: { confirmed: 0, attended: 0, noShow: 0 },
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
     };
   }
 
-  const now = new Date();
   const eventRows = await prisma.event.findMany({
     where: {
       collegeId: workspace.club.collegeId,
       clubId: workspace.club.id,
       deletedAt: null,
       status: { in: ["PUBLISHED", "COMPLETED"] },
-      startsAt: { lte: now },
     },
-    select: { id: true, title: true, startsAt: true, status: true },
+    select: {
+      id: true,
+      title: true,
+      summary: true,
+      startsAt: true,
+      endsAt: true,
+      venueName: true,
+      venueAddress: true,
+      isOnline: true,
+      status: true,
+    },
     orderBy: { startsAt: "desc" },
     take: 100,
   });
 
-  const selectedEvent = eventId
+  let events = eventRows;
+  let selectedEvent = eventId
     ? (eventRows.find((event) => event.id === eventId) ?? null)
     : (eventRows[0] ?? null);
 
   if (eventId && !selectedEvent) {
-    throw new TenantIsolationError();
+    if (!uuidSchema.safeParse(eventId).success) {
+      throw new TenantIsolationError();
+    }
+
+    // An old link may reference a published/completed event outside the latest
+    // 100. Resolve it within the same club and tenant boundary.
+    selectedEvent = await prisma.event.findFirst({
+      where: {
+        id: eventId,
+        collegeId: workspace.club.collegeId,
+        clubId: workspace.club.id,
+        deletedAt: null,
+        status: { in: ["PUBLISHED", "COMPLETED"] },
+      },
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        startsAt: true,
+        endsAt: true,
+        venueName: true,
+        venueAddress: true,
+        isOnline: true,
+        status: true,
+      },
+    });
+
+    if (!selectedEvent) {
+      throw new TenantIsolationError();
+    }
+
+    events = [selectedEvent, ...events];
   }
 
   if (!selectedEvent) {
     return {
       ...workspace,
-      events: eventRows,
+      events,
       selectedEvent: null,
       registrations: [],
       counts: { confirmed: 0, attended: 0, noShow: 0 },
+      total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
     };
   }
 
-  const registrations = await prisma.eventRegistration.findMany({
-    where: {
-      collegeId: workspace.club.collegeId,
-      eventId: selectedEvent.id,
-      status: { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+  const search = filters.search?.trim().slice(0, 100) ?? "";
+  const allowedStatuses = new Set(["CONFIRMED", "ATTENDED", "NO_SHOW"]);
+  const status =
+    filters.status && allowedStatuses.has(filters.status)
+      ? (filters.status as RegistrationStatus)
+      : null;
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 50, 1), 100);
+  const requestedPage = Math.max(filters.page ?? 1, 1);
+  const where: Prisma.EventRegistrationWhereInput = {
+    collegeId: workspace.club.collegeId,
+    eventId: selectedEvent.id,
+    status: status ?? { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+    ...(search
+      ? {
+          studentProfile: {
+            OR: [
+              { user: { name: { contains: search, mode: "insensitive" } } },
+              { rollNumber: { contains: search, mode: "insensitive" } },
+              { department: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        }
+      : {}),
+  };
+  const [registrationCounts, total] = await Promise.all([
+    prisma.eventRegistration.groupBy({
+      by: ["status"],
+      where: {
+        collegeId: workspace.club.collegeId,
+        eventId: selectedEvent.id,
+        status: { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+      },
+      _count: { _all: true },
+    }),
+    prisma.eventRegistration.count({ where }),
+  ]);
+  const counts = registrationCounts.reduce(
+    (accumulator, row) => {
+      if (row.status === "CONFIRMED") accumulator.confirmed = row._count._all;
+      if (row.status === "ATTENDED") accumulator.attended = row._count._all;
+      if (row.status === "NO_SHOW") accumulator.noShow = row._count._all;
+      return accumulator;
     },
+    { confirmed: 0, attended: 0, noShow: 0 },
+  );
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const registrations = await prisma.eventRegistration.findMany({
+    where,
     select: {
       id: true,
       status: true,
@@ -1026,20 +1191,22 @@ export async function getClubAttendance(
         },
       },
     },
-    orderBy: { registeredAt: "asc" },
+    orderBy: [{ studentProfile: { user: { name: "asc" } } }, { id: "asc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
 
-  const counts = registrations.reduce(
-    (accumulator, registration) => {
-      if (registration.status === "CONFIRMED") accumulator.confirmed += 1;
-      if (registration.status === "ATTENDED") accumulator.attended += 1;
-      if (registration.status === "NO_SHOW") accumulator.noShow += 1;
-      return accumulator;
-    },
-    { confirmed: 0, attended: 0, noShow: 0 },
-  );
-
-  return { ...workspace, events: eventRows, selectedEvent, registrations, counts };
+  return {
+    ...workspace,
+    events,
+    selectedEvent,
+    registrations,
+    counts,
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function getClubAnalytics(actor: AuthenticatedActor, requestedClubId?: string) {
@@ -1300,7 +1467,7 @@ export async function getCollegeApprovals(actor: AuthenticatedActor) {
         status: true,
         createdAt: true,
         createdBy: { select: { name: true, email: true } },
-        _count: { select: { memberships: true, events: true } },
+        _count: { select: { memberships: true, events: { where: { deletedAt: null } } } },
       },
       orderBy: { createdAt: "asc" },
       take: 100,
@@ -1342,7 +1509,7 @@ export async function getCollegeClubs(actor: AuthenticatedActor, status?: string
     select: {
       ...clubSummarySelect,
       createdBy: { select: { name: true, email: true } },
-      _count: { select: { memberships: true, events: true } },
+      _count: { select: { memberships: true, events: { where: { deletedAt: null } } } },
     },
     orderBy: [{ status: "asc" }, { name: "asc" }],
     take: 200,
@@ -1370,6 +1537,7 @@ export async function getCollegeClub(actor: AuthenticatedActor, clubId: string) 
         orderBy: [{ status: "asc" }, { role: "asc" }],
       },
       events: {
+        where: { deletedAt: null },
         select: eventListSelect,
         orderBy: { startsAt: "desc" },
         take: 20,
@@ -1687,7 +1855,13 @@ export async function getPlatformDashboard(actor: AuthenticatedActor) {
         shortName: true,
         status: true,
         createdAt: true,
-        _count: { select: { users: true, clubs: true, events: true } },
+        _count: {
+          select: {
+            users: { where: { deletedAt: null } },
+            clubs: { where: { deletedAt: null } },
+            events: { where: { deletedAt: null } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 6,
@@ -1790,7 +1964,13 @@ export async function getPlatformColleges(
         timezone: true,
         status: true,
         createdAt: true,
-        _count: { select: { users: true, clubs: true, events: true } },
+        _count: {
+          select: {
+            users: { where: { deletedAt: null } },
+            clubs: { where: { deletedAt: null } },
+            events: { where: { deletedAt: null } },
+          },
+        },
       },
       orderBy: [{ createdAt: "desc" }],
       skip: (page - 1) * pageSize,
@@ -1823,7 +2003,13 @@ export async function getPlatformCollege(actor: AuthenticatedActor, collegeId: s
       timezone: true,
       status: true,
       createdAt: true,
-      _count: { select: { users: true, clubs: true, events: true } },
+      _count: {
+        select: {
+          users: { where: { deletedAt: null } },
+          clubs: { where: { deletedAt: null } },
+          events: { where: { deletedAt: null } },
+        },
+      },
       users: {
         select: { id: true, name: true, email: true, role: true, status: true, createdAt: true },
         orderBy: { createdAt: "desc" },
@@ -1953,7 +2139,12 @@ export async function getPlatformAnalytics(actor: AuthenticatedActor) {
       select: {
         id: true,
         name: true,
-        _count: { select: { users: true, events: true } },
+        _count: {
+          select: {
+            users: { where: { deletedAt: null } },
+            events: { where: { deletedAt: null } },
+          },
+        },
       },
       orderBy: { name: "asc" },
     }),
@@ -2073,7 +2264,17 @@ export async function getPlatformSettings(actor: AuthenticatedActor) {
     userCount,
     clubCount,
     eventCount,
-    emailEnabled: process.env.EMAIL_ENABLED === "true",
-    storageConfigured: Boolean(process.env.STORAGE_ENDPOINT),
+    emailEnabled: env.EMAIL_ENABLED,
+    storageConfigured:
+      env.POSTER_STORAGE_DRIVER === "s3"
+        ? Boolean(
+            env.S3_ENDPOINT &&
+            env.S3_REGION &&
+            env.S3_BUCKET &&
+            env.S3_ACCESS_KEY_ID &&
+            env.S3_SECRET_ACCESS_KEY,
+          )
+        : true,
+    storageDriver: env.POSTER_STORAGE_DRIVER,
   };
 }

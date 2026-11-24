@@ -92,8 +92,7 @@ export function WorkflowSection() {
 
         <p className="mt-6 flex flex-wrap items-center gap-2 text-[11px] font-medium text-paper/45">
           <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-          Designed for multi-college operations. Every sensitive action is intended to leave an
-          audit record.
+          Designed for multi-college operations. Every sensitive action leaves an audit record.
         </p>
       </Container>
     </section>

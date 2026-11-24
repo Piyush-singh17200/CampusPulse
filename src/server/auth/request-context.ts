@@ -33,12 +33,22 @@ export function rateLimitKey(namespace: string, value: string): string {
 }
 
 export function getClientIp(requestHeaders: Headers): string {
+  if (!env.TRUST_PROXY_HEADERS) {
+    return "unknown";
+  }
+
   const forwardedFor = requestHeaders.get("x-forwarded-for");
 
   if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first && first.length <= 64) {
-      return first;
+    const chain = forwardedFor
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const hops = Math.max(env.TRUSTED_PROXY_HOPS, 1);
+    const candidate = chain[Math.max(chain.length - hops, 0)];
+
+    if (candidate && candidate.length <= 64) {
+      return candidate;
     }
   }
 

@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
 import type { ClubSummary } from "@/server/dashboards/queries";
 
+type SwitcherClub = Pick<ClubSummary, "id" | "name"> & { status?: string };
+
 export function ClubSwitcher({
   clubs,
   activeClubId,
   path,
 }: {
-  clubs: ClubSummary[];
+  clubs: SwitcherClub[];
   activeClubId: string | null;
   path: string;
 }) {

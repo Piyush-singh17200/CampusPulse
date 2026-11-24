@@ -1,20 +1,22 @@
 # Event operations
 
 This document is the operational reference for the event lifecycle, poster
-management, notifications, audit, registration interactions, and the Prompt 7
-event-intelligence features. It describes the behavior implemented in the
-repository; it is not a claim that every future operational feature exists.
-See `docs/event-intelligence.md` for OCR, recommendation, duplicate-threshold,
-and schedule-conflict details.
+management, notifications, audit, registration interactions, the Prompt 7
+event-intelligence features, and the Prompt 8 attendance, feedback, and export
+surfaces. It describes the behavior implemented in the repository; it is not a
+claim that every future operational feature exists. See
+`docs/event-intelligence.md` for OCR, recommendation, duplicate-threshold, and
+schedule-conflict details, and `docs/attendance-feedback-analytics.md` for the
+Prompt 8 routes, analytics formulas, and CSV/ICS formats.
 
 ## 1. Roles and ownership
 
-| Role            | Event operations                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------ |
-| `CLUB_ADMIN`    | Create, edit, submit, cancel, complete, manage posters, and run OCR for owned active clubs.                  |
-| `COLLEGE_ADMIN` | Review events, approve/reject/cancel/complete, and review duplicate suggestions in the same college.         |
-| `SUPER_ADMIN`   | Review and transition existing events across colleges; view posters.                                         |
-| `STUDENT`       | View published same-college events, register/cancel, save/unsave, see recommendations and schedule warnings. |
+| Role            | Event operations                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLUB_ADMIN`    | Create, edit, submit, cancel, complete, manage posters, run OCR, record attendance, and review feedback for owned active clubs.             |
+| `COLLEGE_ADMIN` | Review events, approve/reject/cancel/complete, review duplicate suggestions, moderate feedback, and view analytics in the same college.     |
+| `SUPER_ADMIN`   | Review and transition existing events across colleges; view posters and platform analytics.                                                 |
+| `STUDENT`       | View published same-college events, register/cancel, save/unsave, see recommendations and schedule warnings, check in, and submit feedback. |
 
 Every mutation accepts a trusted `AuthenticatedActor`; the browser never supplies
 its user ID, role, college, or club membership. Services reload authorization
@@ -111,6 +113,9 @@ not configured; no email is sent.
 | Event cancelled        | Students with `CONFIRMED` registrations at cancellation | `REGISTRATION_UPDATE` | Event cancelled        | Same transaction     |
 | Registration confirmed | The registering student                                 | `REGISTRATION_UPDATE` | Registration confirmed | Same transaction     |
 | Registration cancelled | The cancelling student                                  | `REGISTRATION_UPDATE` | Registration cancelled | Same transaction     |
+| Attendance recorded    | The student whose credential was scanned                | `ATTENDANCE_UPDATE`   | Attendance recorded    | Same transaction     |
+| Attendance corrected   | The student whose attendance was corrected              | `ATTENDANCE_UPDATE`   | Attendance updated     | Same transaction     |
+| Event completed        | Students with `ATTENDED` registrations                  | `FEEDBACK_UPDATE`     | How was the event?     | Same transaction     |
 
 - Rejection and cancellation bodies include the stored reason.
 - Event cancellation also changes all confirmed registrations to `CANCELLED` in
@@ -129,23 +134,36 @@ not configured; no email is sent.
   intentionally, which creates a new confirmation notification.
 - There is no dedupe column or outbox table. Idempotency is state-based, and
   notification inserts share the business transaction.
+- `REGISTRATION_UPDATE`, `ATTENDANCE_UPDATE`, and `FEEDBACK_UPDATE` are optional
+  in-app categories. A user preference row can suppress them at insert time;
+  missing rows default to enabled. `MODERATION_UPDATE` remains transactional and
+  is not user-suppressible.
+- Preferences are stored per user and college, updated transactionally, and
+  audited as `NOTIFICATION_PREFERENCES_UPDATED`.
 
 ## 6. Audit actions
 
-| Action                        | Trigger                                                          |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `EVENT_CREATED`               | Draft creation                                                   |
-| `EVENT_UPDATED`               | Draft or rejected event edit                                     |
-| `EVENT_APPROVED`              | Transition to `PUBLISHED`                                        |
-| `EVENT_REJECTED`              | Transition to `REJECTED`                                         |
-| `EVENT_CANCELLED`             | Transition to `CANCELLED`                                        |
-| `EVENT_STATUS_CHANGED`        | Other lifecycle transitions                                      |
-| `POSTER_UPLOADED`             | First primary poster upload                                      |
-| `POSTER_REPLACED`             | Replacement of an existing primary poster                        |
-| `POSTER_REMOVED`              | Removal of an existing primary poster                            |
-| `REGISTRATION_STATUS_CHANGED` | Registration confirmation, cancellation, attendance, no-show     |
-| `DUPLICATE_CONFIRMED`         | College administrator confirms an advisory duplicate suggestion  |
-| `DUPLICATE_DISMISSED`         | College administrator dismisses an advisory duplicate suggestion |
+| Action                             | Trigger                                                          |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `EVENT_CREATED`                    | Draft creation                                                   |
+| `EVENT_UPDATED`                    | Draft or rejected event edit                                     |
+| `EVENT_APPROVED`                   | Transition to `PUBLISHED`                                        |
+| `EVENT_REJECTED`                   | Transition to `REJECTED`                                         |
+| `EVENT_CANCELLED`                  | Transition to `CANCELLED`                                        |
+| `EVENT_STATUS_CHANGED`             | Other lifecycle transitions                                      |
+| `POSTER_UPLOADED`                  | First primary poster upload                                      |
+| `POSTER_REPLACED`                  | Replacement of an existing primary poster                        |
+| `POSTER_REMOVED`                   | Removal of an existing primary poster                            |
+| `REGISTRATION_STATUS_CHANGED`      | Registration confirmation, cancellation, attendance, no-show     |
+| `ATTENDANCE_RECORDED`              | Manual attendance/no-show recording                              |
+| `ATTENDANCE_CORRECTED`             | Reasoned correction of an existing attendance status             |
+| `ATTENDANCE_CREDENTIAL_ISSUED`     | QR credential issuance or rotation                               |
+| `FEEDBACK_SUBMITTED`               | Student submits feedback                                         |
+| `FEEDBACK_UPDATED`                 | Student edits feedback inside the window                         |
+| `FEEDBACK_MODERATED`               | College/platform administrator hides or restores feedback        |
+| `NOTIFICATION_PREFERENCES_UPDATED` | User changes optional in-app notification categories             |
+| `DUPLICATE_CONFIRMED`              | College administrator confirms an advisory duplicate suggestion  |
+| `DUPLICATE_DISMISSED`              | College administrator dismisses an advisory duplicate suggestion |
 
 OCR applies accepted fields through `EVENT_UPDATED` with
 `source: "poster_ocr_review"` and the accepted/applied field lists. Duplicate
@@ -180,7 +198,71 @@ no application service to edit or delete audit rows.
   shown as advisory warnings. They do not block an otherwise valid
   registration.
 
-## 8. Access-control checks
+## 8. Attendance, feedback, calendar, and exports
+
+### Attendance
+
+- The check-in window opens two hours before the event starts and closes two
+  hours after it ends. Only `CONFIRMED` registrations for a `PUBLISHED` event in
+  an active club are eligible.
+- Issuing a QR creates or rotates a 256-bit token. Only its SHA-256 hash is
+  stored; the raw token is returned to the student page and encoded in the QR.
+  The credential expires with the window, is single-use, and is revoked by
+  cancellation or a manual correction.
+- `/club/attendance` supports a browser camera scanner and a manual code field.
+  A successful scan rechecks the credential, registration, event, club, expiry,
+  and status on the server before writing `ATTENDED` and `checkedInAt`.
+- Manual correction requires a 3–500 character reason and moves only between
+  `ATTENDED` and `NO_SHOW`. It writes `ATTENDANCE_CORRECTED` with the previous
+  status, new status, reason, and `method: "MANUAL"`.
+- Attendance notifications are optional in-app `ATTENDANCE_UPDATE` rows. They
+  share the attendance transaction and respect the student's preferences.
+
+### Feedback
+
+- Feedback is available only to students with an `ATTENDED` registration for a
+  `COMPLETED` event within 30 days of completion. One response is allowed per
+  student per event, with a 1–5 rating and an optional 2,000-character comment.
+- Students can edit within the window. Editing preserves any existing moderation
+  state and writes `FEEDBACK_UPDATED`.
+- Club managers have read-only access to feedback for completed events in their
+  managed clubs. College administrators can hide or restore responses with a
+  reason; platform administrators can also moderate through the service.
+- Moderation preserves the original rating, comment, moderator, timestamp, and
+  audit history. Hidden responses are excluded from averages and distributions
+  but remain visible to authorized moderators.
+- Completing an event notifies attended students with an optional
+  `FEEDBACK_UPDATE` reminder.
+
+### Calendar and CSV downloads
+
+- ICS downloads are authenticated, one-way exports for one event, registered
+  events, or saved events. They are not subscriptions or two-way sync.
+- Single-event ICS includes only same-college `PUBLISHED` or `COMPLETED` events.
+  Registered ICS includes `CONFIRMED` and `ATTENDED` registrations. Saved ICS
+  includes currently published saved events. Draft, pending, rejected,
+  cancelled, deleted, and cross-college events are excluded.
+- Calendar files use RFC 5545 escaping, UTC timestamps, the college IANA
+  timezone, stable opaque UIDs, and bounded event counts.
+- Authorized CSV exports cover club attendance, club analytics, college
+  analytics, and platform analytics. Files use UTF-8 BOM, CRLF records, and
+  apostrophe protection for formula-like cells.
+- All download responses are private, non-cacheable attachments. Unauthenticated
+  requests return `401`; unauthorized or cross-tenant objects return a safe
+  `403`/`404`.
+
+### Analytics
+
+- Club, college, and platform analytics use PostgreSQL aggregates for event
+  counts, registrations, active/cancelled counts, present/no-show, attendance
+  rate, completion rate, visible average rating, feedback responses, trends,
+  distributions, and event breakdowns.
+- Filters are validated and normalized server-side. Empty results render
+  explanatory empty states rather than sample data.
+- Analytics are descriptive only; they do not rank students, predict attendance,
+  or make automated decisions.
+
+## 9. Access-control checks
 
 Before publishing or changing a poster, verify:
 
@@ -194,7 +276,7 @@ Before publishing or changing a poster, verify:
 7. A published poster is readable by a same-college student while the event is
    published and the club is active.
 
-## 9. Operational checklist
+## 10. Operational checklist
 
 ### Before submission
 
@@ -228,6 +310,32 @@ Before publishing or changing a poster, verify:
 - Cancel the registration and confirm the cancellation notification.
 - Verify capacity and deadline enforcement with a controlled test event.
 
+### Attendance and feedback
+
+- Open `/club/attendance`, select the event, and confirm registered/present/
+  pending/no-show metrics and the attendance percentage.
+- Issue a QR credential or enter the manual token; confirm the server records
+  `ATTENDED` with a check-in timestamp and the student receives the optional
+  in-app attendance notification.
+- Record a reasoned correction and confirm the audit entry contains the previous
+  status, new status, reason, and manual method.
+- Download the attendance CSV and confirm the UTF-8 BOM, CRLF rows, and all
+  registration statuses.
+- Complete the event, confirm attended students can submit feedback, and verify
+  the read-only club view. As a college administrator, hide and restore the
+  response with a reason and confirm it disappears from/reappears in aggregates.
+
+### Calendar and analytics exports
+
+- Download single-event, registered-event, and saved-event ICS files and verify
+  the event scope, UTC timestamps, and stable UID.
+- Apply date/event/club/category/status filters on club, college, and platform
+  analytics and confirm the values match database records.
+- Download all four CSVs and confirm authorization, tenant scoping, BOM, CRLF,
+  formula protection, and no-store headers.
+- Confirm unauthenticated downloads return `401` and cross-tenant IDs return a
+  safe `403`/`404`.
+
 ### Poster replacement and removal
 
 - Replace a published poster and confirm the new URL serves the new bytes.
@@ -245,7 +353,7 @@ Before publishing or changing a poster, verify:
 - Mark a published event completed and confirm no further registration or
   poster changes are allowed.
 
-## 10. Verification and limitations
+## 11. Verification and limitations
 
 Prompt 6 tests cover lifecycle integration, poster validation, replacement and
 removal, storage failure, access control, capacity/deadline enforcement,
@@ -256,11 +364,17 @@ scoring/review, and schedule conflicts. The Prompt 6 Playwright workflow covers
 create → preview → submit → approve → student view → register → club view →
 cancel → replace → access-control checks → remove → responsive screenshots.
 The Prompt 7 Playwright workflow covers OCR review, recommendations, duplicate
-review, schedule warnings, and responsive layouts.
+review, schedule warnings, and responsive layouts. Prompt 8 adds 26 service/
+integration tests for attendance, feedback, ICS, CSV, analytics, and
+notifications, plus a Playwright workflow covering QR/manual attendance,
+feedback submission and moderation, all ICS/CSV scopes, analytics, notification
+filters/preferences, authorization checks, and responsive layouts. The full
+suite has 28 files / 215 passing tests.
 
 Known limitations:
 
 - Notifications are in-app only; no email, push, SMS, or background delivery.
+  Preferences control optional in-app categories, not external delivery.
 - OCR supports bundled English raster text only and runs in the request process;
   there is no durable queue or progress percentage.
 - Duplicate detection is lexical and advisory; it never auto-merges, auto-
@@ -271,6 +385,15 @@ Known limitations:
   click behavior or external services.
 - No published-event field editing, so no “event changed” notification beyond
   cancellation.
+- Attendance is a check-in record, not identity proof. QR codes/tokens can be
+  shared, and the camera scanner depends on browser `BarcodeDetector` support;
+  manual code entry remains available.
+- Feedback is limited to one response per student per event within 30 days.
+  Moderation hides responses from aggregates without deleting them.
+- ICS files are download-only; there is no calendar subscription, two-way sync,
+  or reminder scheduler.
+- CSV exports are synchronous and materialized in memory; there is no fixed
+  attendance-row cap, background job, signed URL, or export archive.
 - No PostgreSQL RLS; tenant isolation is application-layer plus composite keys.
 - The local poster adapter is single-instance development storage. See
   `docs/poster-storage.md` for production caveats.

@@ -140,7 +140,7 @@ export function StudentSection() {
                 <span className="italic text-forest"> tuned to your week.</span>
               </>
             }
-            description="The student experience starts with relevance. CampusPulse is designed to help you find the things you would have been glad to know about — before they happen."
+            description="The student experience starts with relevance. CampusPulse helps you find the things you would have been glad to know about - before they happen."
           />
 
           <div className="mt-9 border-t border-line-strong">

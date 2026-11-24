@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 const navItems: DashboardNavItem[] = [
-  { href: "/club", label: "Overview", icon: "overview", exact: true },
-  { href: "/club/events", label: "Events", icon: "events" },
-  { href: "/club/events/create", label: "Create event", icon: "create" },
-  { href: "/club/registrations", label: "Registrations", icon: "ticket" },
-  { href: "/club/attendance", label: "Attendance", icon: "attendance" },
-  { href: "/club/feedback", label: "Feedback", icon: "feedback" },
-  { href: "/club/analytics", label: "Analytics", icon: "analytics" },
-  { href: "/club/settings", label: "Club settings", icon: "settings" },
+  { href: "/club", label: "Overview", icon: "overview", exact: true, group: "Operations" },
+  { href: "/club/events", label: "Events", icon: "events", group: "Operations" },
+  { href: "/club/events/create", label: "Create event", icon: "create", group: "Operations" },
+  { href: "/club/registrations", label: "Registrations", icon: "ticket", group: "Operations" },
+  { href: "/club/attendance", label: "Attendance", icon: "attendance", group: "Operations" },
+  { href: "/club/feedback", label: "Feedback", icon: "feedback", group: "Insights & admin" },
+  { href: "/club/analytics", label: "Analytics", icon: "analytics", group: "Insights & admin" },
+  { href: "/club/settings", label: "Club settings", icon: "settings", group: "Insights & admin" },
 ];
 
 export default async function ClubLayout({ children }: { children: ReactNode }) {

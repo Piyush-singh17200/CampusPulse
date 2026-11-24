@@ -5,8 +5,14 @@ import { prisma } from "@/server/db/client";
 import { ActorNotAuthorizedError } from "@/server/errors";
 import { assertStudent, type AuthenticatedActor } from "@/services/authorization";
 import { buildIcsCalendar, type IcsEvent } from "@/lib/ics";
+import { uuidSchema } from "@/services/validation";
 
-const EXPORT_LIMIT = 500;
+/**
+ * Calendar downloads are bounded so an unusually large account cannot exhaust
+ * memory or generate an unbounded response. The extra row is fetched only to
+ * detect that the cap was reached; it is never included in the ICS file.
+ */
+const EXPORT_LIMIT = 1_000;
 
 function eventUrl(eventId: string): string {
   return new URL(`/student/events/${eventId}`, env.NEXT_PUBLIC_APP_URL).toString();
@@ -119,7 +125,7 @@ export async function getStudentCalendarExport(
               },
             },
             orderBy: { event: { startsAt: "asc" } },
-            take: EXPORT_LIMIT,
+            take: EXPORT_LIMIT + 1,
           })
         ).map((row) => row.event)
       : (
@@ -154,11 +160,14 @@ export async function getStudentCalendarExport(
               },
             },
             orderBy: { event: { startsAt: "asc" } },
-            take: EXPORT_LIMIT,
+            take: EXPORT_LIMIT + 1,
           })
         ).map((row) => row.event);
 
-  const body = buildIcsCalendar(events.map(toIcsEvent), {
+  const truncated = events.length > EXPORT_LIMIT;
+  const includedEvents = truncated ? events.slice(0, EXPORT_LIMIT) : events;
+
+  const body = buildIcsCalendar(includedEvents.map(toIcsEvent), {
     calendarName: scope === "saved" ? "CampusPulse saved events" : "CampusPulse registered events",
     timezone: college.timezone,
   });
@@ -168,18 +177,23 @@ export async function getStudentCalendarExport(
       scope === "saved" ? "campuspulse-saved-events" : "campuspulse-registered-events",
     ),
     body,
-    count: events.length,
+    count: includedEvents.length,
+    truncated,
   };
 }
 
 export async function getEventCalendarExport(actor: AuthenticatedActor, eventId: string) {
+  if (!uuidSchema.safeParse(eventId).success) {
+    return null;
+  }
+
   const { profile, college } = await studentContext(actor);
 
   const event = await prisma.event.findFirst({
     where: {
       id: eventId,
       collegeId: profile.collegeId,
-      status: "PUBLISHED",
+      status: { in: ["PUBLISHED", "COMPLETED"] },
       deletedAt: null,
       club: { status: "ACTIVE", deletedAt: null },
     },
@@ -213,5 +227,6 @@ export async function getEventCalendarExport(actor: AuthenticatedActor, eventId:
     filename: filenameFor(`campuspulse-${event.title}`),
     body,
     count: 1,
+    truncated: false,
   };
 }

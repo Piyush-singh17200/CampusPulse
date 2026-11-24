@@ -163,6 +163,7 @@ enum AuditAction {
   FEEDBACK_MODERATED
   NOTIFICATION_READ
   NOTIFICATION_PREFERENCES_UPDATED
+  EXPORT_DOWNLOADED
 }
 
 // Authentication events include anonymous attempts (for example, a login

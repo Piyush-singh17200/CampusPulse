@@ -4,11 +4,13 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { SkipLink } from "@/components/ui/skip-link";
 import { siteConfig } from "@/config/site";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
+      <SkipLink />
       <header className="border-b border-line/80 bg-canvas/90 backdrop-blur-md">
         <Container className="flex h-[4.5rem] items-center justify-between gap-4">
           <Link
@@ -38,7 +40,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </Container>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+        {children}
+      </main>
 
       <footer className="border-t border-line bg-canvas">
         <Container className="flex flex-col gap-2 py-5 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between">

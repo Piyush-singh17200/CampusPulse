@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
       // for multipart boundaries and form-field overhead.
       bodySizeLimit: "6mb",
     },
+    // Next.js otherwise uses one page-data worker per CPU. That exhausts RAM
+    // on small build agents, so the default is deliberately conservative.
+    // Larger CI runners can raise it with NEXT_BUILD_CPUS.
+    cpus: Math.max(1, Number.parseInt(process.env.NEXT_BUILD_CPUS ?? "2", 10) || 2),
   },
   turbopack: {
     rules: {

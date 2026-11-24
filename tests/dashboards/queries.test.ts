@@ -553,6 +553,62 @@ describe("club dashboard queries", () => {
       getClubAttendance(fixture.clubActor, undefined, otherEvent.id),
     ).rejects.toBeInstanceOf(TenantIsolationError);
   });
+
+  it("paginates, searches, and filters the attendance roster on the server", async () => {
+    const fixture = await createBaseFixture();
+    const past = await addEvent(fixture, {
+      title: "Roster Event",
+      startsAt: futureDate(-2),
+    });
+    const students = await Promise.all([
+      createStudent(fixture.college.id, { name: "Alice Attendee" }),
+      createStudent(fixture.college.id, { name: "Bobby Confirm" }),
+      createStudent(fixture.college.id, { name: "Zara NoShow" }),
+    ]);
+    const statuses = ["ATTENDED", "CONFIRMED", "NO_SHOW"] as const;
+
+    await prisma.eventRegistration.createMany({
+      data: students.map((student, index) => ({
+        collegeId: fixture.college.id,
+        eventId: past.id,
+        studentProfileId: student.profile.id,
+        status: statuses[index],
+        checkedInAt: statuses[index] === "ATTENDED" ? new Date() : null,
+      })),
+    });
+
+    const firstPage = await getClubAttendance(fixture.clubActor, undefined, past.id, {
+      page: 1,
+      pageSize: 1,
+    });
+    expect(firstPage.total).toBe(3);
+    expect(firstPage.page).toBe(1);
+    expect(firstPage.pageSize).toBe(1);
+    expect(firstPage.totalPages).toBe(3);
+    expect(firstPage.registrations).toHaveLength(1);
+    expect(firstPage.registrations[0]?.studentProfile.user.name).toBe("Alice Attendee");
+    expect(firstPage.counts).toEqual({ confirmed: 1, attended: 1, noShow: 1 });
+
+    const clamped = await getClubAttendance(fixture.clubActor, undefined, past.id, {
+      page: 99,
+      pageSize: 1,
+    });
+    expect(clamped.page).toBe(3);
+    expect(clamped.registrations[0]?.studentProfile.user.name).toBe("Zara NoShow");
+
+    const search = await getClubAttendance(fixture.clubActor, undefined, past.id, {
+      search: "Zara",
+    });
+    expect(search.total).toBe(1);
+    expect(search.registrations[0]?.studentProfile.user.name).toBe("Zara NoShow");
+
+    const attended = await getClubAttendance(fixture.clubActor, undefined, past.id, {
+      status: "ATTENDED",
+    });
+    expect(attended.total).toBe(1);
+    expect(attended.registrations[0]?.status).toBe("ATTENDED");
+    expect(attended.counts).toEqual({ confirmed: 1, attended: 1, noShow: 1 });
+  });
 });
 
 describe("college dashboard queries", () => {

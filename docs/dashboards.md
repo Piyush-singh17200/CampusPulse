@@ -4,11 +4,14 @@ Prompt 5 implements four authenticated, role-specific CampusPulse dashboards.
 Prompt 6 extends them with event poster management, authenticated poster
 delivery, and transactional in-app notifications. Prompt 7 adds local poster
 OCR review, student recommendations, advisory duplicate review, and schedule-
-conflict warnings. Every page reads real PostgreSQL data through server-only
-query functions and every mutation goes through a Server Action backed by an
-existing domain service. No dashboard exposes Prisma to client components and
-no public business API was added. See `docs/event-intelligence.md` for the
-feature algorithms and limitations.
+conflict warnings. Prompt 8 adds QR attendance, student/club/college feedback,
+authenticated ICS downloads, authorized CSV exports, engagement analytics, and
+notification filters/preferences. Every page reads real PostgreSQL data through
+server-only query functions and every mutation goes through a Server Action or
+an authenticated download route backed by an existing domain service. No
+dashboard exposes Prisma to client components and no public business API was
+added. See `docs/event-intelligence.md` and
+`docs/attendance-feedback-analytics.md` for feature details and limitations.
 
 ## 1. Access model
 
@@ -55,8 +58,9 @@ for any other club.
 | `/student/events/[eventId]` | Event detail, poster, registration and save actions |
 | `/student/registrations`    | Upcoming and past registrations with cancellation   |
 | `/student/saved`            | Persistent saved-event shortlist                    |
-| `/student/calendar`         | Registrations grouped by college-local date         |
-| `/student/notifications`    | User notifications and read state                   |
+| `/student/calendar`         | Registrations grouped by date, with ICS downloads   |
+| `/student/notifications`    | Filtered notifications, read state, and preferences |
+| `/student/feedback`         | Submit or edit feedback for attended events         |
 | `/student/profile`          | Name, academic fields, bio, and interests           |
 
 ### Club administrator
@@ -69,8 +73,9 @@ for any other club.
 | `/club/events/[eventId]`      | Event detail, lifecycle actions, registration summary |
 | `/club/events/[eventId]/edit` | Edit an editable event and manage its poster          |
 | `/club/registrations`         | Registrations for a selected club event               |
-| `/club/attendance`            | Mark attended/no-show after an event starts           |
-| `/club/analytics`             | Status, registration, category, and event breakdowns  |
+| `/club/attendance`            | QR/manual check-in, corrections, and attendance CSV   |
+| `/club/feedback`              | Read-only feedback review for completed events        |
+| `/club/analytics`             | Engagement metrics, filters, trends, and CSV export   |
 | `/club/settings`              | Edit the active club profile                          |
 
 ### College administrator
@@ -84,7 +89,8 @@ for any other club.
 | `/college/clubs`            | Clubs in the college with status filter          |
 | `/college/clubs/[clubId]`   | Club detail, memberships, events                 |
 | `/college/users`            | Searchable, filterable, paginated college users  |
-| `/college/analytics`        | College event/registration/approval analytics    |
+| `/college/feedback`         | Review and moderate feedback across the college  |
+| `/college/analytics`        | Engagement analytics, filters, and CSV export    |
 | `/college/audit-logs`       | Paginated, action-filtered college audit history |
 | `/college/settings`         | College name, short name, and IANA timezone      |
 
@@ -96,12 +102,32 @@ for any other club.
 | `/platform/colleges`             | Searchable, filterable, paginated college list      |
 | `/platform/colleges/[collegeId]` | College detail, users, clubs, audit, lifecycle      |
 | `/platform/users`                | Platform-wide user search and filters               |
-| `/platform/analytics`            | Cross-college status and growth analytics           |
+| `/platform/analytics`            | Cross-college engagement analytics and CSV export   |
 | `/platform/audit-logs`           | Platform-wide audit history with action filter      |
 | `/platform/settings`             | Read-only platform configuration summary            |
 
 Each workspace has a role-specific layout plus `loading.tsx` and `error.tsx`
 states. Empty states are rendered per section rather than as fake sample data.
+Prompt 8 adds route-level loading/error states for attendance, feedback, and
+notifications; error boundaries show a generic message and an optional digest,
+never raw server error text.
+
+Authenticated download routes are separate from the page tree:
+
+| Route                                 | Scope                                         |
+| ------------------------------------- | --------------------------------------------- |
+| `GET /api/calendar/events/[eventId]`  | One published/completed same-college event    |
+| `GET /api/calendar/registered`        | The student's confirmed/attended events       |
+| `GET /api/calendar/saved`             | The student's published saved events          |
+| `GET /api/exports/club/attendance`    | One managed-club event's attendance register  |
+| `GET /api/exports/club/analytics`     | Managed-club analytics for the active filters |
+| `GET /api/exports/college/analytics`  | College analytics for the active filters      |
+| `GET /api/exports/platform/analytics` | Platform analytics for the active filters     |
+
+Each handler resolves the current session, calls the same server-only query or
+service path as the page, and returns a private, non-cacheable attachment.
+Unauthenticated requests return `401`; unauthorized or cross-tenant objects
+return a safe `403`/`404` without tenant data.
 
 ## 3. Server-only data layer
 
@@ -119,6 +145,10 @@ dashboard read model. Query functions:
 
 `src/server/dashboards/access.ts` contains the role, managed-club, college-scope,
 and club-manager assertions shared by queries and Server Actions.
+`src/server/dashboards/engagement-analytics.ts` and `feedback.ts` contain the
+Prompt 8 server-only aggregates and feedback read models;
+`src/lib/analytics-query.ts` normalizes date/event/club/category/status filters
+before they reach Prisma.
 
 ## 4. Server Actions
 
@@ -139,11 +169,13 @@ action follows the same sequence:
 Implemented actions:
 
 - Student: save/unsave event, register/cancel registration, mark one/all
-  notifications read, update profile.
+  notifications read, update notification preferences, submit/edit feedback,
+  update profile.
 - Club: create draft (with optional poster), update event, transition event,
-  upload/replace/remove poster, update club profile, mark attendance.
-- College: approve/reject club, change user role/status, update college
-  settings.
+  upload/replace/remove poster, update club profile, scan/manual check-in,
+  correct attendance with a reason.
+- College: approve/reject club, change user role/status, moderate feedback,
+  update college settings.
 - Platform: change college status.
 
 Poster actions validate the uploaded bytes on the server and call
@@ -201,10 +233,76 @@ Saved events are persisted in PostgreSQL rather than browser storage.
   failed or stale transition cannot leave an orphan notification.
 - Repeated retries do not create duplicates because transitions are guarded by
   the current state. There is no dedupe column or outbox table.
-- The dashboard notification page reads and marks existing notification rows as
-  read. Email/push/SMS delivery is not configured.
+- The dashboard notification page reads, filters, paginates, and marks existing
+  notification rows as read. Per-user preferences suppress optional in-app
+  registration, attendance, and feedback notifications at insert time;
+  moderation notifications remain transactional and are not user-suppressible.
+  Email/push/SMS delivery is not configured.
 
-## 7. Event intelligence surfaces
+## 7. Attendance, feedback, analytics, and exports
+
+### Attendance
+
+- `/club/attendance` limits the event selector to non-deleted `PUBLISHED` and
+  `COMPLETED` events in the selected managed club.
+- The page shows registered, present, pending, no-show, and attendance
+  percentage metrics. The denominator excludes cancelled registrations.
+- The camera scanner uses `BarcodeDetector` when the browser supports it. The
+  manual code field accepts the full CampusPulse payload or a bare token and is
+  the fallback for unsupported cameras, denied permission, or desktop use.
+- A successful scan is server-authoritative: `scanAttendance` rechecks the
+  token hash, event, club, registration, expiry, and status before writing
+  `ATTENDED` and `checkedInAt`.
+- Manual corrections require `ATTENDED` or `NO_SHOW` plus a 3–500 character
+  reason. Corrections revoke outstanding credentials and write audit metadata
+  with the previous status, new status, reason, and `method: "MANUAL"`.
+- The register supports name/roll/department search, status filters, and
+  check-in timestamps. `Export attendance CSV` downloads the selected event.
+
+### Feedback
+
+- `/student/feedback` is limited to the student's `ATTENDED` registrations for
+  `COMPLETED` events within 30 days of completion.
+- Students submit one whole-number rating from 1 to 5 and an optional comment
+  up to 2,000 characters. They can edit while the window remains open.
+- `/club/feedback` is read-only for club managers and supports event, rating,
+  and visibility filters with 20-row pagination. Club managers can see hidden
+  responses and reasons but cannot moderate them.
+- `/college/feedback` supports event, club, rating, and visibility filters and
+  exposes hide/restore actions to college administrators. Moderation requires a
+  reason and preserves the original response and audit history.
+- Averages and distributions use `VISIBLE` feedback only.
+
+### Calendar downloads
+
+- The three ICS routes are authenticated, download-only exports. There is no
+  two-way synchronization, subscription feed, or reminder delivery.
+- Single-event downloads include same-college `PUBLISHED` and `COMPLETED`
+  events. Draft, pending, rejected, cancelled, deleted, and cross-college events
+  are excluded.
+- Registered downloads include the student's `CONFIRMED` and `ATTENDED`
+  registrations. Saved downloads include currently published saved events.
+- Files use RFC 5545 escaping, UTC timestamps, the college IANA timezone, stable
+  opaque UIDs, and bounded event counts. Responses are private and non-cacheable.
+
+### Analytics and CSV exports
+
+- Club, college, and platform pages accept validated date ranges and the
+  role-appropriate event, club, category, and status filters.
+- Metrics include event status counts, registrations, active/cancelled counts,
+  present/no-show, attendance rate, completion rate, visible average rating,
+  feedback response count, rating distribution, trends, category/club mixes,
+  most-attended events, and low-attendance events.
+- All values come from PostgreSQL aggregates. Empty ranges render explanatory
+  empty states rather than sample data.
+- The four CSV routes reuse the page authorization and filter normalization.
+  Club attendance includes every registration row for the selected event.
+  Analytics exports include the event breakdown or platform summary.
+- CSV output is UTF-8 with a BOM, CRLF records, and apostrophe protection for
+  cells that could be interpreted as spreadsheet formulas. Responses are
+  private, non-cacheable attachments with `nosniff`.
+
+## 8. Event intelligence surfaces
 
 ### Club OCR review
 
@@ -237,7 +335,7 @@ Saved events are persisted in PostgreSQL rather than browser storage.
   Confirm/Dismiss actions. The UI states that review never merges, rejects,
   cancels, or deletes either event.
 
-## 8. UI and responsive behavior
+## 9. UI and responsive behavior
 
 `src/components/dashboard/dashboard-shell.tsx` provides a shared application
 shell with role-specific navigation, workspace identity, user identity, sign-out,
@@ -250,15 +348,15 @@ cards, inline metadata, and action/reason/select forms. Analytics are rendered
 with dependency-free SVG bars backed by real grouped counts, not a charting
 library. SVG presentation attributes are used instead of inline `style`
 attributes so the production nonce-based CSP can keep `'unsafe-inline'`
-disabled; the only `style-src-attr` allowance is a hash for Next.js's internal
-route-announcer element.
+disabled; the only `style-src-attr` allowances are narrow hashes for
+framework-owned inline styles emitted by Next.js and `next/image`.
 
 The dashboard routes are designed for 360, 390, 768, 1024, 1280, and 1440 pixel
 widths. Tables scroll horizontally only where a wide audit view needs it; the
 primary dashboard content stacks on narrow screens. Loading, empty, error, and
 not-found states are implemented per workspace.
 
-## 9. Tests
+## 10. Tests
 
 Dashboard and event-operation test coverage includes:
 
@@ -291,14 +389,20 @@ Dashboard and event-operation test coverage includes:
   hook, schedule-overlap detection, registration revalidation, and audit
   metadata;
 - Prompt 7 Playwright OCR review, recommendations, duplicate review, conflict
-  warnings, and responsive layouts.
+  warnings, and responsive layouts;
+- Prompt 8 attendance window/credential/scan/correction authorization and audit,
+  feedback eligibility/submission/edit/moderation, ICS escaping and scoped
+  downloads, CSV BOM/CRLF/formula protection, analytics filters and aggregates,
+  notification filters/pagination/preferences, and read state;
+- Prompt 8 Playwright attendance, feedback, ICS/CSV downloads, analytics,
+  notifications, authorization checks, and responsive layouts.
 
 All tests run against the isolated `campuspulse_test` database. The dashboard,
-Prompt 6, and Prompt 7 migrations are applied by the test global setup through
-`prisma migrate deploy`. The Prompt 7 suite was verified with 24 test files /
-189 tests passing.
+Prompt 6, Prompt 7, and Prompt 8 migrations are applied by the test global setup
+through `prisma migrate deploy`. The full suite was verified with 28 test files /
+215 tests passing.
 
-## 10. Visual verification
+## 11. Visual verification
 
 Desktop and mobile overview screenshots for all four workspaces are stored in
 `docs/screenshots/prompt-5/`:
@@ -319,12 +423,17 @@ cover the OCR review panel, student recommendations, college duplicate review,
 schedule-conflict warning, and responsive layouts at 360, 390, 768, 1024, 1280,
 and 1440 pixel widths.
 
+Prompt 8 screenshots are stored in `docs/screenshots/prompt-8/` and cover the
+club attendance register, student/club/college feedback, club/college/platform
+analytics, and student notifications at 1440 px plus attendance and
+notifications at 390 px.
+
 The final browser pass exercised 360, 390, 768, 1024, 1280, and 1440 pixel
 widths. Every role had zero horizontal overflow, the mobile navigation drawer
 opened with all role links and closed with Escape, and all four workspaces had
 zero console or page errors.
 
-## 11. Known limitations
+## 12. Known limitations
 
 - Tenant isolation remains application-layer scoping plus composite foreign
   keys; PostgreSQL RLS is not implemented.
@@ -340,7 +449,16 @@ zero console or page errors.
   percentage. Recommendations are deterministic and do not learn from clicks.
   Duplicate detection is lexical and advisory. Schedule conflicts are advisory
   and have no travel-time buffer or blocking override.
-- There is no QR check-in flow.
+- Attendance is a check-in record, not identity proof. QR codes/tokens can be
+  shared, and camera scanning depends on browser `BarcodeDetector` support; the
+  manual code field is the fallback.
+- Calendar downloads are one-way ICS exports. There is no calendar
+  subscription, two-way sync, or reminder scheduler.
+- Feedback is limited to one response per student per event within 30 days.
+  Moderation hides a response from aggregates but does not delete it.
+- Analytics are descriptive aggregates and do not rank students, predict
+  attendance, or make automated decisions. CSV exports are synchronous with no
+  background job, signed URL, or export archive.
 - The platform settings page is a configuration summary; there is no platform
   settings mutation service yet.
 - This dashboard work is not a production-readiness claim; no penetration test

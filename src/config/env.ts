@@ -7,7 +7,12 @@ const booleanStringSchema = z
   .default("false")
   .transform((value) => value === "true");
 
-const serverEnvSchema = z
+const defaultTrueBooleanStringSchema = z
+  .enum(["true", "false"])
+  .default("true")
+  .transform((value) => value === "true");
+
+export const serverEnvSchema = z
   .object({
     DATABASE_URL: z
       .string()
@@ -37,8 +42,40 @@ const serverEnvSchema = z
     SMTP_USER: z.string().max(320).optional(),
     SMTP_PASSWORD: z.string().max(1_000).optional(),
     EMAIL_FROM: z.string().min(1).max(320).default("CampusPulse <no-reply@campuspulse.local>"),
+    POSTER_STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+    POSTER_STORAGE_DIR: z.string().min(1).max(1_024).optional(),
+    S3_ENDPOINT: z.string().url("S3_ENDPOINT must be a valid absolute URL.").optional(),
+    S3_REGION: z.string().min(1).max(64).optional(),
+    S3_BUCKET: z.string().min(3).max(255).optional(),
+    S3_ACCESS_KEY_ID: z.string().min(1).max(255).optional(),
+    S3_SECRET_ACCESS_KEY: z.string().min(1).max(512).optional(),
+    S3_SESSION_TOKEN: z.string().min(1).max(8_192).optional(),
+    S3_ALLOW_INSECURE: booleanStringSchema,
+    S3_FORCE_PATH_STYLE: defaultTrueBooleanStringSchema,
+    S3_PREFIX: z.string().max(200).optional(),
+    TRUST_PROXY_HEADERS: booleanStringSchema,
+    TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
   })
   .superRefine((value, context) => {
+    if (process.env.NODE_ENV === "production") {
+      const localHostnames = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+      for (const [field, rawUrl] of [
+        ["NEXT_PUBLIC_APP_URL", value.NEXT_PUBLIC_APP_URL],
+        ["BETTER_AUTH_URL", value.BETTER_AUTH_URL],
+      ] as const) {
+        const url = new URL(rawUrl);
+
+        if (url.protocol !== "https:" && !localHostnames.has(url.hostname)) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: `${field} must use https in production. Localhost URLs are allowed for local production builds only.`,
+          });
+        }
+      }
+    }
+
     if (value.EMAIL_ENABLED && !value.SMTP_HOST) {
       context.addIssue({
         code: "custom",
@@ -53,6 +90,41 @@ const serverEnvSchema = z
         path: ["EMAIL_FROM"],
         message: "EMAIL_FROM is required when EMAIL_ENABLED=true.",
       });
+    }
+
+    if (value.S3_ENDPOINT) {
+      let endpoint: URL;
+
+      try {
+        endpoint = new URL(value.S3_ENDPOINT);
+      } catch {
+        endpoint = new URL("https://invalid.example");
+      }
+
+      if (!["http:", "https:"].includes(endpoint.protocol)) {
+        context.addIssue({
+          code: "custom",
+          path: ["S3_ENDPOINT"],
+          message: "S3_ENDPOINT must use http or https.",
+        });
+      } else if (endpoint.protocol === "http:") {
+        const isLocalhost = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+
+        if (process.env.NODE_ENV === "production") {
+          context.addIssue({
+            code: "custom",
+            path: ["S3_ENDPOINT"],
+            message: "S3_ENDPOINT must use https in production.",
+          });
+        } else if (!isLocalhost && !value.S3_ALLOW_INSECURE) {
+          context.addIssue({
+            code: "custom",
+            path: ["S3_ENDPOINT"],
+            message:
+              "S3_ENDPOINT must use https, or set S3_ALLOW_INSECURE=true for a non-local development endpoint.",
+          });
+        }
+      }
     }
 
     if (value.EMAIL_ENABLED && value.SMTP_USER && !value.SMTP_PASSWORD) {
@@ -70,6 +142,26 @@ const serverEnvSchema = z
         message: "SMTP_USER is required when SMTP_PASSWORD is set.",
       });
     }
+
+    if (value.POSTER_STORAGE_DRIVER === "s3") {
+      const required = [
+        ["S3_ENDPOINT", value.S3_ENDPOINT],
+        ["S3_REGION", value.S3_REGION],
+        ["S3_BUCKET", value.S3_BUCKET],
+        ["S3_ACCESS_KEY_ID", value.S3_ACCESS_KEY_ID],
+        ["S3_SECRET_ACCESS_KEY", value.S3_SECRET_ACCESS_KEY],
+      ] as const;
+
+      for (const [field, fieldValue] of required) {
+        if (!fieldValue) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: `${field} is required when POSTER_STORAGE_DRIVER=s3.`,
+          });
+        }
+      }
+    }
   });
 
 const parsed = serverEnvSchema.safeParse({
@@ -86,6 +178,19 @@ const parsed = serverEnvSchema.safeParse({
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASSWORD: process.env.SMTP_PASSWORD,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  POSTER_STORAGE_DRIVER: process.env.POSTER_STORAGE_DRIVER,
+  POSTER_STORAGE_DIR: process.env.POSTER_STORAGE_DIR,
+  S3_ENDPOINT: process.env.S3_ENDPOINT,
+  S3_REGION: process.env.S3_REGION,
+  S3_BUCKET: process.env.S3_BUCKET,
+  S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+  S3_SESSION_TOKEN: process.env.S3_SESSION_TOKEN,
+  S3_ALLOW_INSECURE: process.env.S3_ALLOW_INSECURE,
+  S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
+  S3_PREFIX: process.env.S3_PREFIX,
+  TRUST_PROXY_HEADERS: process.env.TRUST_PROXY_HEADERS,
+  TRUSTED_PROXY_HOPS: process.env.TRUSTED_PROXY_HOPS,
 });
 
 if (!parsed.success) {

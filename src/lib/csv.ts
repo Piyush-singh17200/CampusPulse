@@ -42,6 +42,7 @@ export function csvDownloadHeaders(filename: string): HeadersInit {
     "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
     "Cache-Control": "private, no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
+    Vary: "Cookie",
   };
 }
 
@@ -51,5 +52,6 @@ export function icsDownloadHeaders(filename: string): HeadersInit {
     "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
     "Cache-Control": "private, no-store, max-age=0",
     "X-Content-Type-Options": "nosniff",
+    Vary: "Cookie",
   };
 }

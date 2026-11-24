@@ -63,11 +63,11 @@ export function PlatformSection() {
                 <span className="italic text-forest"> coordinate, and learn.</span>
               </>
             }
-            description="CampusPulse is being built in layers. Each layer makes the next one more useful — without turning the product into a pile of disconnected tools."
+            description="CampusPulse connects discovery, publishing, moderation, and reporting in one product. Each workspace is shaped by real permissions rather than a shared admin screen."
           />
           <p className="max-w-xs border-l border-line-strong pl-5 text-xs leading-6 text-muted lg:mb-1">
-            The database, tenancy model, and event integrity rules are in place. Authentication,
-            dashboards, and live workflows arrive in the next phases.
+            Authentication, role-based dashboards, moderated publishing, registration, attendance,
+            feedback, analytics, and audit records are implemented end to end.
           </p>
         </div>
 

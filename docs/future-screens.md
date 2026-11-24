@@ -7,10 +7,13 @@ authorization model. Prompt 6 implements event poster upload, replacement, and
 removal with authenticated delivery; see `docs/poster-storage.md` and
 `docs/event-operations.md`. Prompt 7 implements local poster OCR review,
 deterministic recommendations, advisory duplicate review, and schedule-conflict
-warnings; see `docs/event-intelligence.md`. Crop/focal-point editing, semantic
-duplicate detection, email/push/SMS notification delivery, and QR check-in
-remain future work. The service-layer rules in `src/services` remain the backend
-contract.
+warnings; see `docs/event-intelligence.md`. Prompt 8 implements QR attendance,
+student/club/college feedback, authenticated ICS/CSV downloads, club/college/
+platform analytics, and notification filters/preferences; see
+`docs/attendance-feedback-analytics.md`. Crop/focal-point editing, semantic
+duplicate detection, email/push/SMS notification delivery, and two-way calendar
+sync remain future work. The service-layer rules in `src/services` remain the
+backend contract.
 
 Common requirements for every screen:
 
@@ -266,14 +269,15 @@ remain tappable.
 **Purpose:** Keep students informed about registration, moderation, and event
 changes.
 
-**Main components:** Filter tabs (all/unread); notification list; type icon;
-timestamp; mark-read; mark-all-read; action link; empty state.
+**Main components:** All/unread filters; notification-type filters with counts;
+notification list; type icon; timestamp; mark-read; mark-all-read; action link;
+pagination; preferences form; empty state.
 
 **Data required:** Notifications for the current user and college; type, title,
-body, actionUrl, readAt, createdAt; related event/registration status.
+body, actionUrl, readAt, createdAt; per-type counts; notification preferences.
 
-**User actions:** Open notification, mark read/unread, mark all read, follow
-action link.
+**User actions:** Open notification, mark read, mark all read, follow action
+link, change optional in-app notification preferences.
 
 **Loading state:** List skeleton; preserve unread count while loading.
 
@@ -451,6 +455,9 @@ sticky; long text uses a full-screen editor.
 
 ### 15. Registration management
 
+**Status:** Implemented in Prompt 8 as `/club/attendance`, with QR/manual
+check-in, reasoned corrections, timestamps, filters, and attendance CSV export.
+
 **Purpose:** Let a club administrator understand and manage event attendance.
 
 **Main components:** Event selector; capacity/confirmed/waitlist summary; search;
@@ -461,8 +468,8 @@ reason; pagination.
 roll/department (minimum necessary), status, registeredAt, checkedInAt; capacity;
 audit entries.
 
-**User actions:** Search, filter, check in, mark no-show, cancel registration,
-export CSV (future), message attendees (future).
+**User actions:** Search, filter, scan or enter a code, mark no-show with a
+reason, export CSV. Messaging attendees remains future work.
 
 **Loading state:** Table/list skeleton; preserve filters and counts.
 
@@ -479,6 +486,9 @@ personal data.
 sheet; export in overflow.
 
 ### 16. Club analytics
+
+**Status:** Implemented in Prompt 8 with real aggregates, filters, trends,
+attendance/rating distributions, event breakdowns, and CSV export.
 
 **Purpose:** Show a club administrator useful, non-vanity event performance.
 
@@ -641,6 +651,9 @@ sheet.
 
 ### 22. College analytics
 
+**Status:** Implemented in Prompt 8 with real aggregates, filters, trends,
+attendance/rating distributions, event breakdowns, and CSV export.
+
 **Purpose:** Understand college-wide event activity, moderation, and engagement.
 
 **Main components:** Date range; published events; approval turnaround; club
@@ -800,6 +813,9 @@ audit.
 masked.
 
 ### 28. Platform analytics
+
+**Status:** Implemented in Prompt 8 with real cross-college aggregates, date/
+status filters, trends, activity distributions, and CSV export.
 
 **Purpose:** Understand adoption, moderation load, and reliability across
 colleges.

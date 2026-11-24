@@ -163,9 +163,13 @@ Rate limiting is PostgreSQL-backed, not in-memory:
   - Password reset completion per IP: 10 / hour.
 - Expired rows can be pruned with `pruneExpiredRateLimits()`.
 
-IP extraction trusts `x-forwarded-for`, `x-real-ip`, or `cf-connecting-ip`.
-Deploy behind a trusted proxy/platform that overwrites these headers; otherwise a
-client could spoof its apparent IP.
+IP extraction is opt-in. Set `TRUST_PROXY_HEADERS=true` only when the app is
+behind a proxy that overwrites `x-forwarded-for`, `x-real-ip`, or
+`cf-connecting-ip`; `TRUSTED_PROXY_HOPS` selects the address from the right side
+of the `x-forwarded-for` chain (default `1`). When trust is disabled, the
+rate-limit key uses `unknown`, which shares an IP bucket rather than accepting a
+spoofable header. Do not expose the Node process directly when trust is
+enabled.
 
 ## Password recovery
 
@@ -220,6 +224,26 @@ The command:
 6. Never creates a credential or password.
 
 The command is idempotent for an existing super administrator.
+
+### First college bootstrap
+
+Registration requires an active college, and the platform dashboard does not
+expose tenant creation. A new deployment therefore starts with the guarded
+college CLI:
+
+```powershell
+npm run college:bootstrap -- --confirm-college-bootstrap --name "Example College" --slug "example-college" --short-name "EC" --domain "example.edu" --timezone "Asia/Kolkata"
+```
+
+The command validates its input, refuses a duplicate slug or domain, creates
+only the college, and prints the next steps. It does not create a user,
+password, or default administrator. After it succeeds:
+
+1. Register the initial account at `/register` against the new college.
+2. Promote that account with `auth:bootstrap-super-admin`.
+3. Sign in again because promotion revokes existing sessions.
+
+See `docs/PROMPT_9_DEPLOYMENT_GUIDE.md` for the full first-run sequence.
 
 ## Auth screens
 

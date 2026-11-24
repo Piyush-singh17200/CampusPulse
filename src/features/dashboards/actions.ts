@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { DomainError, InvalidInputError } from "@/server/errors";
 import { assertSameOrigin } from "@/server/auth/csrf";
+import { RATE_LIMITS, enforceRateLimit, type RateLimitPolicy } from "@/server/auth/rate-limit";
 import { requireAuthenticatedUser } from "@/server/auth/session";
 import { POSTER_MAX_BYTES, validatePosterImage } from "@/server/posters/image";
 import {
@@ -70,6 +71,17 @@ async function actor() {
   return requireAuthenticatedUser();
 }
 
+/**
+ * Authenticates the caller and applies a PostgreSQL-backed per-user budget for
+ * an expensive or abuse-prone operation. Enforcement lives at the action
+ * boundary so the underlying services remain deterministic for direct tests.
+ */
+async function limitedActor(policy: RateLimitPolicy) {
+  const user = await actor();
+  await enforceRateLimit(policy, user.id);
+  return user;
+}
+
 function success(message: string): DashboardActionState {
   return { status: "success", message };
 }
@@ -79,7 +91,7 @@ export async function saveEventAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.registrationWriteUser);
     const eventId = field(formData, "eventId");
     await saveEvent(user, { eventId });
     revalidatePath("/student");
@@ -97,7 +109,7 @@ export async function unsaveEventAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.registrationWriteUser);
     const eventId = field(formData, "eventId");
     await unsaveEvent(user, { eventId });
     revalidatePath("/student");
@@ -115,7 +127,7 @@ export async function registerForEventAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.registrationWriteUser);
     const eventId = field(formData, "eventId");
     const result = await registerForEvent(user, { eventId });
     revalidatePath("/student");
@@ -145,7 +157,7 @@ export async function cancelRegistrationAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.registrationWriteUser);
     const eventId = field(formData, "eventId");
     await cancelRegistration(user, { eventId });
     revalidatePath("/student");
@@ -259,11 +271,12 @@ export async function createEventAction(
   let posterUploadFailed = false;
 
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.eventWriteUser);
     const clubId = field(formData, "clubId");
     const poster = await readPosterFile(formData);
 
     if (poster) {
+      await enforceRateLimit(RATE_LIMITS.posterUploadUser, user.id);
       // Validate before creating the draft so an invalid file does not leave a
       // new event behind.
       validatePosterImage(poster.bytes);
@@ -308,7 +321,7 @@ export async function uploadPosterAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.posterUploadUser);
     const eventId = field(formData, "eventId");
     const poster = await readPosterFile(formData);
 
@@ -340,7 +353,7 @@ export async function removePosterAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.posterUploadUser);
     const eventId = field(formData, "eventId");
     const result = await removeEventPoster(user, { eventId });
 
@@ -366,7 +379,7 @@ export async function updateEventAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.eventWriteUser);
     const eventId = field(formData, "eventId");
     await updateEvent(user, { eventId, ...eventInput(formData) });
     revalidatePath("/club");
@@ -383,7 +396,7 @@ export async function runPosterOcrAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.posterOcrUser);
     const eventId = field(formData, "eventId");
     const result = await processPosterOcr(user, { posterId: field(formData, "posterId") });
 
@@ -407,7 +420,7 @@ export async function applyPosterOcrAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.eventWriteUser);
     const eventId = field(formData, "eventId");
     const payload = field(formData, "payload");
 
@@ -443,7 +456,7 @@ export async function transitionEventAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.eventWriteUser);
     const eventId = field(formData, "eventId");
     await transitionEvent(user, {
       eventId,
@@ -468,7 +481,7 @@ export async function reviewDuplicateAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.eventWriteUser);
     await reviewDuplicate(user, {
       duplicateId: field(formData, "duplicateId"),
       decision: field(formData, "decision"),
@@ -495,7 +508,7 @@ export async function decideClubAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await decideClub(user, {
       clubId: field(formData, "clubId"),
       decision: field(formData, "decision"),
@@ -515,7 +528,7 @@ export async function updateClubProfileAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await updateClubProfile(user, {
       clubId: field(formData, "clubId"),
       name: field(formData, "name"),
@@ -534,7 +547,7 @@ export async function markAttendanceAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.attendanceWriteUser);
     await markAttendance(user, {
       registrationId: field(formData, "registrationId"),
       status: field(formData, "status"),
@@ -552,7 +565,7 @@ export async function issueAttendanceQrAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.attendanceWriteUser);
     const registrationId = field(formData, "registrationId");
     const issued = await issueAttendanceQr(user, registrationId);
     revalidatePath("/student/registrations");
@@ -581,7 +594,7 @@ export async function issueAttendanceQrAction(
  */
 export async function scanAttendanceAction(formData: FormData): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.attendanceScanUser);
     const result = await scanAttendance(user, {
       eventId: field(formData, "eventId"),
       token: field(formData, "token"),
@@ -612,7 +625,7 @@ export async function correctAttendanceAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.attendanceWriteUser);
     await correctAttendance(user, {
       registrationId: field(formData, "registrationId"),
       status: field(formData, "status"),
@@ -633,7 +646,7 @@ export async function submitFeedbackAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.feedbackWriteUser);
     await submitFeedback(user, {
       eventId: field(formData, "eventId"),
       rating: field(formData, "rating"),
@@ -653,7 +666,7 @@ export async function updateFeedbackAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.feedbackWriteUser);
     await updateFeedback(user, {
       eventId: field(formData, "eventId"),
       rating: field(formData, "rating"),
@@ -673,7 +686,7 @@ export async function moderateFeedbackAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await moderateFeedback(user, {
       feedbackId: field(formData, "feedbackId"),
       decision: field(formData, "decision"),
@@ -682,6 +695,7 @@ export async function moderateFeedbackAction(
     revalidatePath("/college/feedback");
     revalidatePath("/college/analytics");
     revalidatePath("/club/feedback");
+    revalidatePath("/student/feedback");
     return success("Feedback moderation decision recorded.");
   } catch (error) {
     return errorState(error);
@@ -711,7 +725,7 @@ export async function changeUserRoleAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await changeUserRole(user, {
       targetUserId: field(formData, "targetUserId"),
       role: field(formData, "role"),
@@ -729,7 +743,7 @@ export async function changeUserStatusAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await changeUserStatus(user, {
       targetUserId: field(formData, "targetUserId"),
       status: field(formData, "status"),
@@ -747,7 +761,7 @@ export async function updateCollegeSettingsAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await updateCollegeSettings(user, {
       name: field(formData, "name"),
       shortName: nullableField(formData, "shortName"),
@@ -766,7 +780,7 @@ export async function changeCollegeStatusAction(
   formData: FormData,
 ): Promise<DashboardActionState> {
   try {
-    const user = await actor();
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
     await changeCollegeStatus(user, {
       collegeId: field(formData, "collegeId"),
       status: field(formData, "status"),

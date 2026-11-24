@@ -17,6 +17,7 @@ export type DomainErrorCode =
   | "INVALID_ORIGIN"
   | "RATE_LIMITED"
   | "STORAGE_ERROR"
+  | "OCR_TIMEOUT"
   | "CONFLICT";
 
 export class DomainError extends Error {

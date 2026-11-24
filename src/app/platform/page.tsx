@@ -1,3 +1,11 @@
+import {
+  Building2,
+  CalendarDays,
+  ClipboardCheck,
+  ScrollText,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -40,29 +48,83 @@ export default async function PlatformOverviewPage() {
         }
       />
 
+      <section className="grid gap-px overflow-hidden rounded-xl border border-line bg-line shadow-card sm:grid-cols-3">
+        {[
+          {
+            label: "Tenant coverage",
+            value: `${data.collegeCounts.active}/${data.collegeCounts.total}`,
+            detail: "active colleges",
+            href: "/platform/colleges",
+            icon: Building2,
+          },
+          {
+            label: "Content pipeline",
+            value: String(data.clubCounts.pending + data.eventCounts.pending),
+            detail: "items awaiting college review",
+            href: "/platform/colleges",
+            icon: ClipboardCheck,
+          },
+          {
+            label: "Governance trail",
+            value: String(data.recentAudit.length),
+            detail: "recent actions recorded",
+            href: "/platform/audit-logs",
+            icon: ScrollText,
+          },
+        ].map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="group bg-paper p-4 transition-colors hover:bg-canvas/55 sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted">
+                  {item.label}
+                </p>
+                <Icon
+                  aria-hidden="true"
+                  className="size-4 text-forest transition-colors group-hover:text-signal-dark"
+                />
+              </div>
+              <p className="mt-2 text-2xl font-bold leading-none tracking-[-0.04em] text-ink">
+                {item.value}
+              </p>
+              <p className="mt-1.5 text-[11px] text-muted">{item.detail}</p>
+            </Link>
+          );
+        })}
+      </section>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Colleges"
           value={data.collegeCounts.total}
           detail={`${data.collegeCounts.active} active`}
           tone="forest"
+          icon={<Building2 className="size-3.5" />}
         />
         <MetricCard
           label="Users"
           value={data.userCounts.total}
           detail={`${data.userCounts.active} active`}
+          icon={<UsersRound className="size-3.5" />}
         />
         <MetricCard
           label="Clubs"
           value={data.clubCounts.total}
           detail={`${data.clubCounts.pending} pending`}
           tone="signal"
+          icon={<ShieldCheck className="size-3.5" />}
         />
         <MetricCard
           label="Registrations"
           value={data.registrationCount}
           detail="Platform-wide activity"
           tone="ink"
+          icon={<CalendarDays className="size-3.5" />}
         />
       </div>
 

@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 const isDevelopment = process.env.NODE_ENV === "development";
 
 /**
- * Next.js renders its route announcer as a custom element with a fixed
- * `style="position: absolute;"` attribute. A nonce cannot authorize style
- * attributes, so production allows only this exact framework-owned style via
- * an attribute hash instead of enabling `'unsafe-inline'` globally.
+ * A nonce cannot authorize style attributes. Production therefore allows only
+ * the exact framework-owned inline styles via attribute hashes instead of
+ * enabling `'unsafe-inline'` globally:
+ * - `display:none` used by the Next.js route announcer/overlay plumbing;
+ * - `color:transparent` emitted by `next/image`.
  */
-const nextRouteAnnouncerStyleHash = "'sha256-aqNNdDLnnrDOnTNdkJpYlAxKVJtLt9CtFLklmInuUAE='";
+const allowedInlineStyleHashes = [
+  "'sha256-aqNNdDLnnrDOnTNdkJpYlAxKVJtLt9CtFLklmInuUAE='", // display:none
+  "'sha256-zlqnbDt84zf1iSefLU/ImC54isoprH/MRiVZGskwexk='", // color:transparent
+].join(" ");
 
 /**
  * Generates a per-request nonce and a nonce-based CSP.
@@ -23,7 +27,7 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' ${isDevelopment ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
-    ...(isDevelopment ? [] : [`style-src-attr 'unsafe-hashes' ${nextRouteAnnouncerStyleHash}`]),
+    ...(isDevelopment ? [] : [`style-src-attr 'unsafe-hashes' ${allowedInlineStyleHashes}`]),
     "img-src 'self' blob: data:",
     "font-src 'self'",
     `connect-src 'self'${isDevelopment ? " ws: wss:" : ""}`,

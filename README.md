@@ -13,8 +13,20 @@ transactional in-app notifications for moderation and registration events, and
 poster/lifecycle audit coverage. Prompt 7 adds local Tesseract.js poster OCR with
 human review, deterministic student recommendations, advisory same-college
 duplicate review, and advisory schedule-conflict warnings with server-side
-revalidation. Public business APIs, email notification delivery, production
-object storage, deployment, and PostgreSQL RLS remain future work.
+revalidation. Prompt 8 connects QR attendance, post-event feedback, calendar
+downloads, engagement analytics, notification preferences, and authorized CSV
+exports to the role dashboards. Prompt 9 hardens the existing system for
+production: per-user rate limits, export audit rows, bounded OCR, a health
+endpoint, an S3-compatible poster storage adapter, validated environment
+configuration, accessibility fixes, and deployment/operations documentation.
+Prompt 10 completes the submission pass: the required “CampusPulse — Too Many
+Posters, Too Little Signal.” landing message, an accessible four-role product
+preview, grouped dashboard navigation, editorial metric cards, stronger role
+focus panels, a designed poster fallback, responsive fixes down to 360 px, new
+screenshots, and final submission/verification documents. Public business APIs,
+email/push/SMS notification delivery, two-way calendar sync, live production
+deployment, and PostgreSQL RLS remain future work. The S3 adapter and SMTP path
+are implemented but have not been exercised against live services.
 
 The project is published at
 <https://github.com/Piyush-singh17200/CampusPulse>.
@@ -26,12 +38,14 @@ Implemented and verified in this phase:
 - Responsive, accessible CampusPulse landing page with all 11 required sections.
 - Next.js 16 App Router, strict TypeScript, ESLint, Prettier, and production build.
 - PostgreSQL 17 Docker service on host port `5434`.
-- Prisma schema with 25 models, enums, composite tenant foreign keys, indexes,
+- Prisma schema with 27 models, enums, composite tenant foreign keys, indexes,
   timestamps, and deliberate deletion behavior.
-- Six applied migrations: the initial schema, the event audit enum extension,
+- Eight applied migrations: the initial schema, the event audit enum extension,
   the additive auth/session/RBAC migration, the additive dashboard
-  saved-event/audit migration, the Prompt 6 poster audit enum migration, and the
-  Prompt 7 event-intelligence migration.
+  saved-event/audit migration, the Prompt 6 poster audit enum migration, the
+  Prompt 7 event-intelligence migration, the Prompt 8 attendance/feedback/
+  notification-preference migration, and the Prompt 9 export-download audit
+  enum migration.
 - Central database configuration, pooling, hot-reload singleton, health check,
   test-database guards, tenant helpers, domain errors, transaction retries, and
   audit redaction.
@@ -79,31 +93,77 @@ Implemented and verified in this phase:
   event.
 - Advisory schedule-conflict warnings using strict interval overlap, including
   server-side revalidation and audit metadata during registration.
-- Isolated Vitest integration suite against `campuspulse_test` with 189 passing
-  tests, including OCR, recommendations, duplicate review, schedule conflicts,
-  poster validation/storage/access/cleanup, notification scoping, concurrency,
-  tenant, lifecycle, auth, session, reset, rate-limit, CSRF, RBAC, dashboard
-  authorization, filtering, pagination, audit, and security tests.
+- Event-bound QR attendance credentials, a browser camera scanner with a manual
+  token fallback, a reasoned attendance correction path, check-in timestamps,
+  and an authorized attendance register at `/club/attendance`.
+- Student feedback for attended completed events, a 30-day submission/edit
+  window, read-only club review, and college-admin moderation that preserves the
+  original response and audit history.
+- Authenticated ICS downloads for a single event, registered events, and saved
+  events. Calendar files are download-only; there is no two-way sync.
+- Database-derived club, college, and platform analytics with date/event/club/
+  category/status filters, event and registration trends, attendance and
+  completion rates, rating distributions, low-attendance events, and per-event
+  breakdowns.
+- Authorized CSV exports for club attendance, club analytics, college analytics,
+  and platform analytics with UTF-8 BOM, CRLF records, spreadsheet-formula
+  protection, and tenant-scoped rows.
+- A paginated notification center with unread/type filters, per-type counts,
+  safe deep links, read state, and database-backed in-app preferences for
+  registration, attendance, and feedback categories.
+- Isolated Vitest integration suite against `campuspulse_test` with 235 passing
+  tests across 31 files, including Prompt 8 attendance, feedback, ICS, CSV,
+  analytics, notifications, poster validation/storage/access/cleanup, Prompt 9
+  rate limits, export audit, OCR timeout/cooldown, health payload safety, and
+  SigV4 signing, notification scoping, concurrency, tenant, lifecycle, auth,
+  session, reset, rate-limit, CSRF, RBAC, dashboard authorization, filtering,
+  pagination, audit, and security tests.
 - Playwright workflow coverage for create → preview → submit → approve → student
   view → register → club registration list → cancel → replace poster →
   access-control checks → remove → responsive screenshots, plus Prompt 7 OCR,
   recommendations, duplicate review, and conflict warnings.
-- Idempotent, fictional, development-only seed.
+- Prompt 8 Playwright workflow covers attendance QR/manual check-in, feedback
+  submission and moderation, single/registered/saved ICS downloads, all four
+  CSV exports, club/college/platform analytics, notification filters and
+  preferences, and 390 px attendance/notification layouts.
+- Prompt 9 Playwright workflow covers health/readiness, security headers,
+  unauthenticated export/calendar/poster `401`s, export rate limiting and
+  audit, skip navigation, labeled login inputs, and 375/768/1440 px responsive
+  layouts.
+- Prompt 10 landing page with the required headline, interactive
+  Student/Club/College/Platform preview, real CTAs, and clearly labelled
+  illustrative data.
+- Prompt 10 dashboard polish: grouped navigation, desktop breadcrumbs, mobile
+  focus management, editorial metric cards, role-specific focus panels,
+  notification/interest/schedule surfaces, and a designed poster-pending
+  fallback.
+- Prompt 10 responsive evidence: 27 screenshots and a 50-route audit at 360,
+  390, 768, 1024, 1280, and 1440 px, with 0 console errors, 0 non-success
+  routes, and 0 horizontal-overflow failures.
+- Prompt 10 submission documents: feature matrix, submission guide, demo
+  script, and final verification report.
+- Idempotent, fictional, development-only seed with curated demo
+  notifications and predictable college-local event times.
 - Design-system, database, authentication, dashboard, event-operations,
-  event-intelligence, poster-storage, security, and future-screen docs.
+  event-intelligence, attendance-feedback-analytics, poster-storage, security,
+  future-screen, and Prompt 9 production-readiness docs (audit, security,
+  reliability, performance, accessibility, architecture, deployment,
+  environment, backup/recovery, operations, and final verification).
 
 Intentionally deferred:
 
 - Public business APIs and any unauthenticated business endpoint.
-- QR check-in, semantic duplicate detection, and external recommendation or LLM
-  services.
-- Email/push/SMS notification delivery and production SMTP configuration.
-  Notifications are in-app only.
-- Production object storage, a shared multi-instance poster volume, CDN
-  delivery, and poster malware scanning. The included adapter is local
-  development/self-hosted storage.
-- Production deployment, secret-manager integration, edge/HSTS hardening, and a
-  penetration test.
+- Semantic duplicate detection and external recommendation or LLM services.
+- Two-way calendar synchronization, calendar subscriptions, and reminder
+  delivery. ICS files are authenticated downloads only.
+- Email/push/SMS notification delivery. Notifications are in-app only.
+  Password-reset SMTP is configurable, but live delivery has not been verified.
+- Live S3 object-storage verification, CDN delivery, and poster malware
+  scanning. The S3-compatible adapter is implemented but has not been exercised
+  against a live bucket.
+- Production deployment, secret-manager integration, load testing, a restore
+  drill, and a penetration test. HSTS and the other security headers are
+  implemented.
 - PostgreSQL RLS. Tenant isolation is currently application-layer scoping plus
   composite foreign keys. See `docs/database.md` and
   `docs/authentication.md`.
@@ -171,6 +231,23 @@ confirmation flag, and a local/trusted environment. It never creates a password,
 default credential, or public endpoint. It revokes the promoted user's sessions,
 so sign in again afterward. See `docs/authentication.md`.
 
+### Prepared local demo accounts
+
+The prepared local demo database used for the Prompt 10 screenshots has four
+credentialed accounts. All use the local-only password `CampusPulse!2026`:
+
+| Role                   | Email                                    |
+| ---------------------- | ---------------------------------------- |
+| Student                | `isha.rao@campuspulse.example`           |
+| Club administrator     | `robotics.president@campuspulse.example` |
+| College administrator  | `northfield.admin@campuspulse.example`   |
+| Platform administrator | `platform.admin@campuspulse.example`     |
+
+The seed creates the fictional users but intentionally does not create
+passwords. A fresh database therefore requires account creation and role
+provisioning before these exact credentials work. Never reuse these credentials
+in a deployed environment. See [`docs/SUBMISSION_GUIDE.md`](docs/SUBMISSION_GUIDE.md).
+
 ## PostgreSQL in Docker
 
 `docker-compose.yml` defines:
@@ -206,27 +283,36 @@ environment.
 
 Copy `.env.example` to `.env.local`. `.env.local` is ignored by Git.
 
-| Variable                         | Required | Purpose                                                                   |
-| -------------------------------- | -------- | ------------------------------------------------------------------------- |
-| `DATABASE_URL`                   | yes      | Runtime PostgreSQL connection; use a pooled URL in a hosted environment   |
-| `DIRECT_URL`                     | yes      | Prisma CLI/migration connection; use a direct URL in a hosted environment |
-| `TEST_DATABASE_URL`              | tests    | Separate URL whose database name is exactly `campuspulse_test`            |
-| `NEXT_PUBLIC_APP_URL`            | yes      | Public origin used for metadata; never put secrets in `NEXT_PUBLIC_*`     |
-| `BETTER_AUTH_SECRET`             | yes      | 32+ byte random secret used by Better Auth and default HMAC lookup keys   |
-| `BETTER_AUTH_URL`                | yes      | Auth origin; use HTTPS in production                                      |
-| `RATE_LIMIT_SECRET`              | no       | Separate 32+ byte key for HMAC rate-limit lookup keys                     |
-| `EMAIL_ENABLED`                  | no       | `true` enables SMTP password-reset delivery                               |
-| `SMTP_HOST`                      | email    | Required when `EMAIL_ENABLED=true`                                        |
-| `SMTP_PORT`                      | no       | SMTP port, default `587`                                                  |
-| `SMTP_SECURE`                    | no       | `true` for implicit TLS; usually `false` with STARTTLS on port 587        |
-| `SMTP_USER` / `SMTP_PASSWORD`    | email    | Optional paired SMTP credentials; both or neither                         |
-| `EMAIL_FROM`                     | email    | Sender address, required when email is enabled                            |
-| `POSTER_STORAGE_DIR`             | no       | Local poster storage root; default `.data/posters`                        |
-| `DATABASE_POOL_MAX`              | no       | Pool size, default `10`                                                   |
-| `DATABASE_CONNECTION_TIMEOUT_MS` | no       | Connection timeout, default `5000`                                        |
-| `DATABASE_IDLE_TIMEOUT_MS`       | no       | Idle timeout, default `30000`                                             |
-| `DATABASE_SSL`                   | no       | `true` for a TLS-required hosted database                                 |
-| `DATABASE_LOG_QUERIES`           | no       | Query logging; never enable in production                                 |
+| Variable                            | Required | Purpose                                                                   |
+| ----------------------------------- | -------- | ------------------------------------------------------------------------- |
+| `DATABASE_URL`                      | yes      | Runtime PostgreSQL connection; use a pooled URL in a hosted environment   |
+| `DIRECT_URL`                        | yes      | Prisma CLI/migration connection; use a direct URL in a hosted environment |
+| `TEST_DATABASE_URL`                 | tests    | Separate URL whose database name is exactly `campuspulse_test`            |
+| `NEXT_PUBLIC_APP_URL`               | yes      | Public origin used for metadata; never put secrets in `NEXT_PUBLIC_*`     |
+| `BETTER_AUTH_SECRET`                | yes      | 32+ byte random secret used by Better Auth and default HMAC lookup keys   |
+| `BETTER_AUTH_URL`                   | yes      | Auth origin; use HTTPS in production                                      |
+| `RATE_LIMIT_SECRET`                 | no       | Separate 32+ byte key for HMAC rate-limit lookup keys                     |
+| `EMAIL_ENABLED`                     | no       | `true` enables SMTP password-reset delivery                               |
+| `SMTP_HOST`                         | email    | Required when `EMAIL_ENABLED=true`                                        |
+| `SMTP_PORT`                         | no       | SMTP port, default `587`                                                  |
+| `SMTP_SECURE`                       | no       | `true` for implicit TLS; usually `false` with STARTTLS on port 587        |
+| `SMTP_USER` / `SMTP_PASSWORD`       | email    | Optional paired SMTP credentials; both or neither                         |
+| `EMAIL_FROM`                        | email    | Sender address, required when email is enabled                            |
+| `POSTER_STORAGE_DRIVER`             | no       | `local` (default) or `s3`; use `s3` for multi-instance deployments        |
+| `POSTER_STORAGE_DIR`                | no       | Local poster storage root; default `.data/posters`                        |
+| `S3_ENDPOINT` / `S3_REGION`         | s3       | HTTPS S3-compatible endpoint and signing region                           |
+| `S3_BUCKET` / `S3_ACCESS_KEY_ID`    | s3       | Private bucket and access key (least privilege)                           |
+| `S3_SECRET_ACCESS_KEY`              | s3       | Secret key; never commit or log                                           |
+| `S3_SESSION_TOKEN`                  | no       | Session token for temporary AWS/STS or role credentials                   |
+| `S3_ALLOW_INSECURE`                 | no       | Non-local HTTP only outside production; default `false`                   |
+| `S3_FORCE_PATH_STYLE` / `S3_PREFIX` | no       | Path-style URLs (default `true`) and optional safe key prefix             |
+| `DATABASE_POOL_MAX`                 | no       | Pool size, default `10`                                                   |
+| `DATABASE_CONNECTION_TIMEOUT_MS`    | no       | Connection timeout, default `5000`                                        |
+| `DATABASE_IDLE_TIMEOUT_MS`          | no       | Idle timeout, default `30000`                                             |
+| `DATABASE_SSL`                      | no       | `true` for a TLS-required hosted database                                 |
+| `DATABASE_LOG_QUERIES`              | no       | Query logging; never enable in production                                 |
+| `TRUST_PROXY_HEADERS`               | no       | Opt in only behind a trusted reverse proxy; default `false`               |
+| `TRUSTED_PROXY_HOPS`                | no       | Number of trusted proxy hops used to select the client IP; default `1`    |
 
 The app validates required values at startup. Errors name the invalid field but
 never print credential values. The database layer additionally validates the
@@ -239,6 +325,9 @@ Production notes:
 - Production auth cookies always include `Secure`; serve the app over HTTPS.
 - Production password recovery requires SMTP. If `EMAIL_ENABLED=false`,
   production never returns or logs a reset token, so recovery is unavailable.
+- Only set `TRUST_PROXY_HEADERS=true` when a trusted reverse proxy strips
+  client-supplied forwarding headers. Set `TRUSTED_PROXY_HOPS` to the real number
+  of proxies; otherwise the client IP is reported as `unknown`.
 - Do not place SMTP passwords or auth secrets in `NEXT_PUBLIC_*` variables.
 
 ## Prisma commands
@@ -269,8 +358,10 @@ The Prisma CLI loads `.env.local` and uses `DIRECT_URL`; the Next.js runtime use
   platform administrator.
 - Active and pending clubs with memberships.
 - Categories and interests.
-- Events in draft, pending, published, rejected, cancelled, and completed states.
+- Ten events in draft, pending, published, rejected, cancelled, and completed
+  states, with predictable Asia/Kolkata event times.
 - Fictional registrations and registrations in attended/no-show/cancelled states.
+- Four curated in-app notifications for student, club, and college demo roles.
 
 The seed uses deterministic emails/slugs and upserts, so rerunning it does not
 create duplicates. It does not create credentials, passwords, reset tokens, or
@@ -315,13 +406,18 @@ relationships and cross-college FK rejection, registration success/duplicates/
 deadlines/capacity/cancellation, event lifecycle and audit, poster content
 validation, poster storage keys/path traversal, poster upload/replacement/
 removal/access control/storage failure/cleanup, notification scoping and retry
-guards, club/role administration, audit redaction/rollback, security boundaries,
-concurrent capacity/duplicate races, student registration, Argon2id hashes,
-Better Auth sessions, logout/expiry/deleted sessions, disabled accounts,
-reset-token hashing, expiry/single use/session revocation, PostgreSQL rate
-limits, CSRF/origin checks, RBAC helpers, role-change session revocation, and
-CLI super-admin bootstrap. Tests run sequentially (`fileParallelism: false`,
-`maxWorkers: 1`) so database resets are deterministic.
+guards, Prompt 8 QR attendance and corrections, feedback submission/moderation,
+ICS escaping and download scopes, CSV BOM/CRLF/formula protection, analytics
+aggregates and filters, notification preferences/read state, club/role
+administration, audit redaction/rollback, security boundaries, concurrent
+capacity/duplicate races, student registration, Argon2id hashes, Better Auth
+sessions, logout/expiry/deleted sessions, disabled accounts, reset-token
+hashing, expiry/single use/session revocation, PostgreSQL rate limits,
+CSRF/origin checks, RBAC helpers, role-change session revocation, CLI
+super-admin bootstrap, Prompt 9 rate limits, export audit, OCR timeouts, health
+payload safety, and SigV4 signing. Tests run sequentially
+(`fileParallelism: false`, `maxWorkers: 1`) so database resets are
+deterministic. The current suite has 31 test files and 235 passing tests.
 
 ### Browser workflow tests
 
@@ -335,8 +431,8 @@ development server. Do not run it against a stale production `next start`
 process. The workflow uses the seeded demo accounts and creates a new test event
 in the **development** database; it does not reset or truncate the database.
 Clear `rate_limit_entries` or wait for the login window if repeated runs hit
-“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`
-and `docs/screenshots/prompt-7/`.
+“Too many attempts.” Screenshots are written to `docs/screenshots/prompt-6/`,
+`docs/screenshots/prompt-7/`, and `docs/screenshots/prompt-8/`.
 
 ## Development and production commands
 
@@ -359,7 +455,7 @@ migrations or the seed automatically. A production deployment must run
 
 ```text
 prisma/
-  schema.prisma                 25-model multi-tenant + auth schema
+  schema.prisma                 27-model multi-tenant + auth schema
   migrations/                   applied SQL migrations
   seed.ts                       guarded fictional development seed
 scripts/
@@ -368,6 +464,8 @@ scripts/
 src/
   app/                          App Router pages, auth pages, dashboard routes
   app/api/posters/              authenticated poster delivery route
+  app/api/calendar/             authenticated single/registered/saved ICS routes
+  app/api/exports/              authorized club/college/platform CSV routes
   app/student/                  student dashboard routes
   app/club/                     club administrator routes
   app/college/                  college administrator routes
@@ -384,8 +482,11 @@ src/
   server/posters/               content-based poster validation
   server/ocr/                   deterministic extraction + local Tesseract engine
   server/storage/               server-only poster storage interface + local adapter
+  server/exports/               CSV serialization and formula-injection protection
+  server/http/                  safe download response helpers
   server/errors.ts              domain error types
-  services/                     event, registration, poster, notification, club, user domains
+  services/                     event, registration, attendance, feedback, calendar,
+                                analytics, notification, poster, club, user domains
   generated/prisma/             generated client (not hand-edited)
 tests/
   global-setup.ts               test DB creation + migrate deploy
@@ -394,8 +495,9 @@ tests/
   auth/                         auth, session, reset, rate-limit, CSRF, RBAC tests
   dashboards/                   dashboard access, scoping, filtering, pagination
   db/                           client and tenant relationship tests
-  e2e/                          Playwright poster/lifecycle workflows
-  services/                     lifecycle, registration, poster, notification, security tests
+  e2e/                          Playwright lifecycle and Prompt 8 operation workflows
+  services/                     lifecycle, registration, poster, attendance, feedback,
+                                analytics, notification, and security tests
 docs/
   authentication.md             auth/session/RBAC/rate-limit/CSRF design
   dashboards.md                 dashboard routes, authorization, actions, tests
@@ -403,9 +505,15 @@ docs/
   design-system.md              tokens, components, states, accessibility
   event-operations.md           lifecycle, poster rules, notifications, audit
   event-intelligence.md         OCR, recommendations, duplicates, conflicts
+  attendance-feedback-analytics.md
+                                QR attendance, feedback, ICS/CSV, analytics
   future-screens.md             screen specifications and implemented status
   poster-storage.md             poster storage, validation, delivery, caveats
-  security-review.md            security review with Prompt 6 addendum
+  security-review.md            security review with Prompt 8 addendum
+  PROMPT_9_*.md                 readiness audit, security, reliability,
+                                performance, accessibility, architecture,
+                                deployment, environment, backup/recovery,
+                                operations, and final verification
 ```
 
 ## Architecture
@@ -481,7 +589,15 @@ college.
   pre-registration lookup, and registration-time revalidation.
 - `src/services/notification-recipients.ts`: active club-manager and confirmed
   registrant recipient lookup inside the business transaction.
-- `src/services/attendance.ts`: post-start attended/no-show transitions.
+- `src/services/attendance.ts`: post-start attended/no-show transitions,
+  event-bound QR credential issuance, scanner/manual check-in, and reasoned
+  corrections with audit.
+- `src/services/attendance-credentials.ts`: signed, event-bound attendance
+  token creation and verification helpers.
+- `src/services/feedback.ts`: attended-completed-event eligibility, the 30-day
+  submission/edit window, club read models, and college-admin moderation.
+- `src/services/calendar.ts`: authenticated single-event, registered-event, and
+  saved-event ICS generation with stable UIDs and escaped text.
 - `src/services/authorization.ts`: trusted actor type, active-account checks,
   role/college assertions, and club membership checks.
 - `src/services/validation.ts`: Zod input validation, date ordering, slugging.
@@ -489,8 +605,10 @@ college.
 Poster storage is server-only under `src/server/storage/`; image validation is
 under `src/server/posters/`; OCR extraction and the local Tesseract engine are
 under `src/server/ocr/`; notification inserts are in
-`src/server/db/notifications.ts`. See `docs/poster-storage.md`,
-`docs/event-operations.md`, and `docs/event-intelligence.md`.
+`src/server/db/notifications.ts`; CSV serialization is under
+`src/server/exports/`. See `docs/poster-storage.md`,
+`docs/event-operations.md`, `docs/event-intelligence.md`, and
+`docs/attendance-feedback-analytics.md`.
 
 Services accept a trusted `AuthenticatedActor` first argument. They reload the
 actor's role/college/membership state from PostgreSQL before acting. They are not
@@ -505,6 +623,9 @@ exposed as public business APIs in this phase.
 - `src/server/dashboards/queries.ts` is server-only. Every query accepts the
   trusted actor, re-checks authorization, scopes by college/club, and returns real
   database rows, counts, filters, and pagination.
+- `src/server/dashboards/engagement-analytics.ts` and `feedback.ts` contain the
+  server-only Prompt 8 attendance, analytics, notification, and feedback read
+  models. `src/lib/analytics-query.ts` parses and normalizes filter input.
 - `src/features/dashboards/actions.ts` contains dashboard Server Actions. Each
   action checks the origin, loads the current actor, converts FormData into
   service input, calls the existing domain service, revalidates affected routes,
@@ -611,13 +732,21 @@ delete audit rows. Database-level immutability is not implemented.
 - IP rate limiting trusts `x-forwarded-for`, `x-real-ip`, or `cf-connecting-ip`.
   Deploy behind a trusted proxy that overwrites these headers.
 - No email-verification flow exists; new students have `emailVerified=false`.
-- The only upload surface is authenticated event-poster management. There is no
-  public business API, general media library, OCR, or QR check-in.
+- The only upload surface is authenticated event-poster management. QR check-in
+  is authenticated, event-bound, and available only to the owning club manager.
+  There is no public business API or general media library.
 - Poster storage is a local filesystem adapter for development and
   single-instance self-hosting. It is not shared, replicated, CDN-backed, or
   malware-scanned. Do not serve the storage directory directly.
 - Notifications are in-app only. No email, push, SMS, outbox, or background
-  delivery worker exists.
+  delivery worker exists. Preferences suppress in-app registration, attendance,
+  and feedback notifications; transactional moderation notifications are not
+  user-suppressible.
+- ICS downloads are one-way exports. There is no calendar subscription,
+  two-way sync, or reminder scheduler.
+- CSV exports are authorized, tenant-scoped, and protected against spreadsheet
+  formula injection, but they are synchronous. Analytics breakdowns are capped
+  at 5,000 rows and attendance exports at 10,000 registrations.
 - The seed is development-only and local-only; it is not a production data path.
 - Test cleanup is guarded by an exact database name and `current_database()`
   check. Tests must never point at the development database.
@@ -747,12 +876,13 @@ Then start `npm run dev` and verify the landing page plus `/login`, `/register`,
 their role-specific routes:
 
 - `/student`, `/student/discover`, `/student/registrations`, `/student/saved`,
-  `/student/calendar`, `/student/notifications`, `/student/profile`
+  `/student/calendar`, `/student/notifications`, `/student/feedback`,
+  `/student/profile`
 - `/club`, `/club/events`, `/club/registrations`, `/club/attendance`,
-  `/club/analytics`, `/club/settings`
+  `/club/feedback`, `/club/analytics`, `/club/settings`
 - `/college`, `/college/events`, `/college/approvals`, `/college/clubs`,
-  `/college/users`, `/college/analytics`, `/college/audit-logs`,
-  `/college/settings`
+  `/college/users`, `/college/feedback`, `/college/analytics`,
+  `/college/audit-logs`, `/college/settings`
 - `/platform`, `/platform/colleges`, `/platform/users`, `/platform/analytics`,
   `/platform/audit-logs`, `/platform/settings`
 
@@ -772,11 +902,44 @@ verify adjacent events do not warn. Check the student overview recommendations
 and their explanations. Repeat the event, recommendation, duplicate, and warning
 views at 360, 390, 768, 1024, 1280, and 1440 pixel widths.
 
+For Prompt 8, complete a seeded event and open `/club/attendance`. Issue/scan a
+QR credential or use the manual token fallback, verify the check-in timestamp,
+record a reasoned correction, and download the attendance CSV. As the student,
+submit feedback from `/student/feedback` and confirm it appears read-only in
+`/club/feedback`; as a college administrator, hide and restore it from
+`/college/feedback`. Download single-event, registered-event, and saved-event
+ICS files, then download all four analytics CSVs and confirm the UTF-8 BOM,
+CRLF rows, and tenant-scoped contents. Exercise date/event/club/category/status
+filters on `/club/analytics`, `/college/analytics`, and `/platform/analytics`.
+Open `/student/notifications`, use unread/type filters and pagination, toggle
+registration/attendance/feedback preferences, and verify deep links. Repeat the
+attendance and notification views at 390 px.
+
 Check the mobile drawer, keyboard focus, fonts, browser console, session
 persistence, logout, generic auth errors, filters, pagination, empty states, and
 cross-role redirects. Verify dashboard and event-detail layouts at 360, 390, 768,
 1024, 1280, and 1440 pixel widths. Stop any stale production server before
 rebuilding.
+
+For the final Prompt 10 gate, run:
+
+```powershell
+npx prisma validate
+npm run db:generate
+npm run typecheck
+npm run lint
+npm run format:check
+git diff --check
+npm run build
+npm test
+```
+
+The Prompt 10 capture report at
+`docs/screenshots/prompt-10/capture-report.json` records 50 audited route visits
+and 27 screenshots at all six widths, with no browser console errors, no
+non-success routes, and no horizontal overflow. The exact final gate results and
+remaining production limitations are in
+[`docs/FINAL_VERIFICATION_REPORT.md`](docs/FINAL_VERIFICATION_REPORT.md).
 
 ## Documentation
 
@@ -785,19 +948,44 @@ rebuilding.
 - [Database architecture, ER diagram, tenancy, lifecycle, concurrency](docs/database.md)
 - [Event lifecycle, poster rules, notifications, audit](docs/event-operations.md)
 - [OCR, recommendations, duplicate review, schedule conflicts](docs/event-intelligence.md)
+- [QR attendance, feedback, calendar/CSV exports, analytics, notifications](docs/attendance-feedback-analytics.md)
 - [Poster storage, validation, delivery, production caveats](docs/poster-storage.md)
 - [Design system](docs/design-system.md)
 - [Future screen specifications](docs/future-screens.md)
 - [Focused security review](docs/security-review.md)
 
+### Submission readiness (Prompt 10)
+
+- [Feature matrix](docs/FEATURE_MATRIX.md)
+- [Submission guide](docs/SUBMISSION_GUIDE.md)
+- [Project demo script](docs/PROJECT_DEMO_SCRIPT.md)
+- [Final verification report](docs/FINAL_VERIFICATION_REPORT.md)
+- [Prompt 10 screenshots](docs/screenshots/prompt-10/)
+- [Prompt 10 capture report](docs/screenshots/prompt-10/capture-report.json)
+
+### Production readiness (Prompt 9)
+
+- [Final verification report](docs/PROMPT_9_VERIFICATION_REPORT.md)
+- [Production readiness audit](docs/PROMPT_9_PRODUCTION_READINESS_AUDIT.md)
+- [Security hardening](docs/PROMPT_9_SECURITY_HARDENING.md)
+- [Reliability](docs/PROMPT_9_RELIABILITY_REPORT.md)
+- [Performance](docs/PROMPT_9_PERFORMANCE_REPORT.md)
+- [Accessibility](docs/PROMPT_9_ACCESSIBILITY_REPORT.md)
+- [Production architecture](docs/PROMPT_9_PRODUCTION_ARCHITECTURE.md)
+- [Deployment guide](docs/PROMPT_9_DEPLOYMENT_GUIDE.md)
+- [Environment reference](docs/PROMPT_9_ENVIRONMENT_REFERENCE.md)
+- [Backup and recovery](docs/PROMPT_9_BACKUP_AND_RECOVERY.md)
+- [Operations runbook](docs/PROMPT_9_OPERATIONS_RUNBOOK.md)
+
 ## Scope boundary
 
-Prompt 7 stops after verified event intelligence: local poster OCR with human
-review, deterministic recommendations, advisory duplicate review, and advisory
-schedule-conflict warnings. Production email/push/SMS notification delivery,
-production object storage, public business APIs, production deployment, paid
-services, and external account changes remain future work. The source is
-published to GitHub, but PostgreSQL RLS, production
-SMTP, shared poster storage, and deployment hardening remain future work. Do not
-expose the services as public business APIs until route-level authorization and
-production hardening are reviewed for that phase.
+Prompt 10 stops after the final submission polish and verification pass:
+landing-page messaging and role preview, dashboard navigation and hierarchy,
+responsive fixes, new evidence, and submission documentation. The final status
+is **SUBMISSION READY WITH LIMITATIONS**. A live production deployment, live
+S3/SMTP verification, load testing, a restore drill, public business APIs,
+email/push/SMS notification delivery, two-way calendar sync, PostgreSQL RLS,
+paid services, and external account changes remain future work. No production
+deployment has been performed. Do not expose the services as public business
+APIs until route-level authorization and production hardening are reviewed for
+that phase.

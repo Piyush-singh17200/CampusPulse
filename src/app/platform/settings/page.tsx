@@ -62,7 +62,9 @@ export default async function PlatformSettingsPage() {
               <div>
                 <dt className="font-semibold text-ink">Object storage</dt>
                 <dd className="mt-1 text-xs text-muted">
-                  Poster and file upload storage configuration.
+                  {data.storageDriver === "s3"
+                    ? "Private S3-compatible poster storage."
+                    : "Local poster storage for this instance."}
                 </dd>
               </div>
               <span
@@ -72,7 +74,11 @@ export default async function PlatformSettingsPage() {
                     : "text-sm font-bold text-signal-dark"
                 }
               >
-                {data.storageConfigured ? "Configured" : "Not configured"}
+                {data.storageConfigured
+                  ? data.storageDriver === "s3"
+                    ? "S3 configured"
+                    : "Local configured"
+                  : "Not configured"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">

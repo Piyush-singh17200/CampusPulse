@@ -10,12 +10,12 @@ export const metadata: Metadata = {
 };
 
 const navItems: DashboardNavItem[] = [
-  { href: "/platform", label: "Overview", icon: "platform", exact: true },
-  { href: "/platform/colleges", label: "Colleges", icon: "college" },
-  { href: "/platform/users", label: "Users", icon: "users" },
-  { href: "/platform/analytics", label: "Analytics", icon: "analytics" },
-  { href: "/platform/audit-logs", label: "Audit history", icon: "audit" },
-  { href: "/platform/settings", label: "Settings", icon: "settings" },
+  { href: "/platform", label: "Overview", icon: "platform", exact: true, group: "Network" },
+  { href: "/platform/colleges", label: "Colleges", icon: "college", group: "Network" },
+  { href: "/platform/users", label: "Users", icon: "users", group: "Network" },
+  { href: "/platform/analytics", label: "Analytics", icon: "analytics", group: "Network" },
+  { href: "/platform/audit-logs", label: "Audit history", icon: "audit", group: "Governance" },
+  { href: "/platform/settings", label: "Settings", icon: "settings", group: "Governance" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

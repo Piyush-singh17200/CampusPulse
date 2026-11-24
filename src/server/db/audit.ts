@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { AuditAction } from "@/generated/prisma/enums";
+import { prisma } from "@/server/db/client";
 
 export type AuditMetadata = Record<string, unknown>;
 
@@ -64,14 +65,26 @@ export async function writeAuditLog(
   tx: Prisma.TransactionClient,
   input: AuditInput,
 ): Promise<void> {
-  await tx.auditLog.create({
-    data: {
-      collegeId: input.collegeId ?? null,
-      actorUserId: input.actorUserId,
-      action: input.action,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      metadata: (redactAuditMetadata(input.metadata ?? {}) ?? {}) as Prisma.InputJsonValue,
-    },
-  });
+  await tx.auditLog.create({ data: auditRow(input) });
+}
+
+/**
+ * Writes an audit row outside an existing transaction. Used by read-only
+ * download routes that must record accountability without mutating domain
+ * state. Callers that require the audit and the mutation to commit together
+ * must use `writeAuditLog` with their transaction client instead.
+ */
+export async function recordAuditEvent(input: AuditInput): Promise<void> {
+  await prisma.auditLog.create({ data: auditRow(input) });
+}
+
+function auditRow(input: AuditInput): Prisma.AuditLogCreateInput {
+  return {
+    college: input.collegeId ? { connect: { id: input.collegeId } } : undefined,
+    actor: { connect: { id: input.actorUserId } },
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    metadata: (redactAuditMetadata(input.metadata ?? {}) ?? {}) as Prisma.InputJsonValue,
+  };
 }

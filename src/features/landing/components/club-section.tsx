@@ -15,13 +15,13 @@ const clubFeatures = [
     icon: ScanText,
     title: "Poster review, not poster chaos",
     description:
-      "Poster uploads are designed to become an OCR-assisted draft, so clubs spend less time retyping details from their own designs.",
+      "Poster uploads become an OCR-assisted draft, so clubs spend less time retyping details from their own designs.",
   },
   {
     icon: ShieldCheck,
     title: "Fewer collisions",
     description:
-      "Duplicate and conflict checks are planned before publishing, giving clubs and colleges a shared source of truth.",
+      "Duplicate and conflict checks run before publishing, giving clubs and colleges a shared source of truth.",
   },
 ];
 

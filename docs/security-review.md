@@ -7,8 +7,10 @@ test-database safety, seed safety, and the landing/auth UI surface. The Prompt 5
 addendum covers the dashboard and saved-event surface. The Prompt 6 addendum
 covers authenticated poster upload/delivery and transactional notifications.
 The Prompt 7 addendum covers local OCR, recommendations, duplicate review, and
-schedule-conflict warnings. Public business APIs, production object storage, and
-deployment remain out of scope.
+schedule-conflict warnings. The Prompt 8 addendum covers QR attendance, feedback,
+calendar/CSV downloads, analytics, and notification preferences. Public business
+APIs, live object-storage verification, and production deployment remain out of
+scope.
 
 Review date: 2026-11-09.
 
@@ -45,9 +47,10 @@ reviewed for this addition are:
 - No public business API or Prisma access from client components was added.
 - Platform and college lifecycle/status changes revoke affected sessions.
 - Dashboard analytics use SVG attributes, not inline `style` attributes. The
-  production CSP keeps its nonce-based `style-src` and allows only the
-  framework-owned `next-route-announcer` style through a narrow
-  `style-src-attr` hash; `'unsafe-inline'` is not enabled in production.
+  production CSP keeps its nonce-based `style-src` and allows only narrow
+  hashes for framework-owned inline styles (`next-route-announcer` and
+  `next/image`) through `style-src-attr`; `'unsafe-inline'` is not enabled in
+  production.
 
 Residual risks remain the same as the findings below: no PostgreSQL RLS, no
 production notification/SMTP delivery, no penetration test, and application-level
@@ -142,15 +145,20 @@ table, and least-privilege database roles. Do not claim RLS exists today.
 
 **Severity:** Medium, development-only (`npm audit`; production audit is checked
 separately during final verification)\
-**Evidence:** The full audit currently reports 8 moderate findings in
-`eslint-config-next` → `typescript-eslint` → `minimatch`.\
-**Impact:** A malicious/oversized glob could affect local lint tooling; it is not
-shipped in the production runtime. The suggested automatic fix changes
-`eslint-config-next` to a different major/downgrade and is not safe to apply
+**Evidence:** `npm audit` currently reports 17 advisories (6 moderate, 11 high)
+in development tooling: `minimatch` through ESLint/TypeScript-ESLint, and
+`picomatch` through Vitest/Vite/tinyglobby/fast-glob. `npm audit --omit=dev`
+still lists the `picomatch` chain because Vitest is a declared peer dependency of
+`better-auth`, but the affected glob matcher is not imported by the application
+runtime.\
+**Impact:** A malicious/oversized glob could affect local lint or test tooling;
+it is not shipped in the production request path. The suggested forced fix
+downgrades Vitest to 3.1.4 and changes the toolchain, so it is not safe to apply
 blindly.\
-**Decision:** Accepted for this phase. Re-evaluate when the ESLint/TypeScript
-toolchain supports patched `minimatch >=11.0.1`. Do not use `npm audit fix
---force` without reviewing the resulting dependency graph.
+**Decision:** Accepted for this phase. Re-evaluate when the
+ESLint/TypeScript-ESLint/Vitest toolchain supports patched `minimatch` and
+`picomatch` releases. Do not use `npm audit fix --force` without reviewing the
+resulting dependency graph and rerunning the full verification suite.
 
 ### SEC-M3 — SMTP is not configured, so production recovery is not operational
 
@@ -191,13 +199,17 @@ append-only/immutability controls before relying on audit records for compliance
 
 **Severity:** Low in a correctly configured deployment; potentially higher if the
 app is exposed directly\
-**Evidence:** `getClientIp()` reads `x-forwarded-for`, `x-real-ip`, or
-`cf-connecting-ip`.\
-**Impact:** A direct client could spoof an apparent IP and bypass IP-only limits.
-Per-email/per-account limits still apply, and passwords are never accepted without
-rate limiting.\
-**Mitigation:** Deploy behind a trusted proxy/platform that overwrites these
-headers. Do not expose the Node process directly to the public internet.
+**Evidence:** `getClientIp()` reads forwarded headers only when
+`TRUST_PROXY_HEADERS=true`; otherwise it returns `unknown`. When enabled,
+`TRUSTED_PROXY_HOPS` selects the address from the right side of the
+`x-forwarded-for` chain.\
+**Impact:** A direct client could spoof an apparent IP and bypass IP-only limits
+if the deployment enables trust without a sanitizing proxy. Per-email/per-account
+limits still apply, and passwords are never accepted without rate limiting.\
+**Mitigation:** Keep `TRUST_PROXY_HEADERS=false` when the Node process is
+directly reachable. Behind a proxy, enable it only after confirming the proxy
+overwrites the forwarded headers, and set the correct hop count. Do not expose
+the Node process directly to the public internet.
 
 ### SEC-L4 — Object existence is not fully normalized across tenants
 
@@ -305,19 +317,93 @@ duplicate review, and schedule-conflict warnings. Addendum date: 2026-11-13.
   policy.
 - No new secret or external API credential is introduced by Prompt 7.
 
+## Prompt 8 addendum
+
+Prompt 8 adds QR attendance, student/club/college feedback, authenticated ICS
+and CSV downloads, engagement analytics, and in-app notification preferences.
+Addendum date: 2026-11-18.
+
+### Controls reviewed
+
+- **Attendance credentials.** QR issuance requires an authenticated student, a
+  `CONFIRMED` registration for a `PUBLISHED` event in an active club, and the
+  check-in window. The 256-bit token is returned once to the student page; only
+  its SHA-256 hash is stored. Credentials are single-use, expire with the
+  window, and are revoked by cancellation, event cancellation, or a manual
+  correction. Scanning rechecks the hash, registration, event, club, expiry, and
+  status on the server before writing attendance.
+- **Attendance authorization.** `/club/attendance` and its CSV route require an
+  active president/officer of the selected managed club. Manual correction
+  requires `ATTENDED` or `NO_SHOW`, a 3–500 character reason, and writes
+  `ATTENDANCE_CORRECTED` with previous/new status, reason, and `method: "MANUAL"`.
+  The scanner never records attendance locally.
+- **Feedback authorization.** Students can submit or edit only their own
+  `ATTENDED` registration for a `COMPLETED` event within 30 days. One response is
+  allowed per event/student. Club managers have read-only access to completed
+  events in their managed clubs. Hiding/restoring requires a same-college college
+  administrator (or platform administrator) and a reason; moderation preserves
+  the original response and audit history.
+- **Calendar downloads.** All ICS routes require an authenticated student and
+  use the same college/registration/save scoping as the pages. Single-event
+  downloads include only same-college `PUBLISHED`/`COMPLETED` events. Text is
+  RFC 5545-escaped, output is bounded, and responses are private, non-cacheable
+  attachments. There is no calendar write path.
+- **CSV downloads.** Attendance and analytics exports re-run the page
+  authorization and filter normalization server-side. Rows are tenant-scoped.
+  Serialization adds a UTF-8 BOM, CRLF records, and an apostrophe prefix for
+  string cells that begin with spreadsheet formula characters. Responses use
+  `text/csv`, `Content-Disposition: attachment`,
+  `Cache-Control: private, no-store`, and `X-Content-Type-Options: nosniff`.
+- **Analytics scoping.** Club, college, and platform queries accept the trusted
+  actor, assert the dashboard role, scope by college/club, validate filters, and
+  return bounded aggregates. No student-level ranking or automated decision is
+  produced. Hidden feedback is excluded from aggregates.
+- **Notification preferences.** Preferences are keyed by user and college,
+  default to enabled, and are upserted transactionally with
+  `NOTIFICATION_PREFERENCES_UPDATED` audit. They suppress only optional in-app
+  `REGISTRATION_UPDATE`, `ATTENDANCE_UPDATE`, and `FEEDBACK_UPDATE` rows at insert
+  time. Transactional `MODERATION_UPDATE` notifications cannot be suppressed.
+  There is no external delivery path.
+- **Error disclosure.** Attendance, feedback, and notification error boundaries
+  log only a digest and render a generic message; raw server errors are not
+  shown to the browser.
+- **Authorization tests.** Prompt 8 tests cover unauthenticated downloads,
+  cross-tenant/cross-club access, expired/used/revoked credentials, wrong-event
+  codes, feedback eligibility and moderation, CSV formula protection, ICS
+  scoping, analytics filters, and preference suppression.
+
+### Prompt 8 result
+
+| Area                       | Result                                                                |
+| -------------------------- | --------------------------------------------------------------------- |
+| Critical findings          | 0 in the implemented Prompt 8 scope                                   |
+| High findings              | 0 in the implemented Prompt 8 scope                                   |
+| Medium findings            | 0 new code vulnerabilities found                                      |
+| Residual operational risks | Shared QR tokens, browser camera support, synchronous exports, no RLS |
+| Automated coverage         | 26 Prompt 8 service/integration tests plus Playwright workflow        |
+
+Residual risks: attendance is a check-in record rather than identity proof, so a
+student can share a QR/token; camera scanning depends on `BarcodeDetector` with a
+manual fallback; ICS is one-way and has no subscription/reminder service; CSV
+exports are synchronous and materialized in memory; and notification preferences
+are in-app only. PostgreSQL RLS, a penetration test, and production deployment hardening
+remain future work.
+
 ## Residual risks
 
 - No production deployment, PostgreSQL RLS, SMTP, secret manager integration, or
   penetration test exists yet. These are explicit later-phase work.
 - A database superuser or direct SQL session bypasses service authorization.
 - Audit rows can be altered by a database superuser.
-- Development dependency advisories remain until the lint toolchain upgrades.
+- Development dependency advisories remain until the lint/test toolchain upgrades.
 - New student accounts have `emailVerified=false`; there is no verification flow
   in this phase.
 - Production password recovery is not operational until SMTP is configured.
 - IP rate limiting relies on trusted proxy headers.
-- Poster storage is local and single-instance; it is not shared, CDN-backed,
-  malware-scanned, or covered by a production lifecycle/backup policy.
+- The local poster adapter remains single-instance and is not CDN-backed,
+  malware-scanned, or covered by a production lifecycle/backup policy. The S3
+  adapter is implemented with HTTPS enforcement and session-token signing but
+  has not been verified against a live bucket.
 - Notifications are in-app only; there is no email/push/SMS delivery or
   background outbox.
 - Event creation is intentionally club-manager-only because the
@@ -334,6 +420,9 @@ development-only transitive advisory, and missing production SMTP configuration.
 Prompt 6 found no new Critical/High code issue in the poster and notification
 surface. Prompt 7 found no new Critical/High code issue in the OCR,
 recommendation, duplicate-review, or conflict-warning surface; residual risks are
-the documented advisory/accuracy limitations. Production deployment must wait
-for RLS/email/secret-manager hardening, durable shared poster storage, and a
-separate deployment review.
+the documented advisory/accuracy limitations. Prompt 8 found no new
+Critical/High code issue in the attendance, feedback, download, analytics, or
+notification-preference surface; residual risks are the documented shared-token,
+browser-support, one-way-calendar, and synchronous-export limitations.
+Production deployment must wait for RLS/email/secret-manager hardening, durable
+shared poster storage, and a separate deployment review.

@@ -4,7 +4,13 @@ import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { env } from "@/config/env";
 import { DomainError } from "@/server/errors";
+
+import { isPosterStorageKey, posterStorageError } from "./poster-key";
+import { createS3PosterStorage } from "./s3-poster-storage";
+
+export { isPosterStorageKey } from "./poster-key";
 
 /**
  * Poster storage is deliberately small and server-only. Callers never pass a
@@ -18,21 +24,10 @@ export interface PosterStorage {
   delete(key: string): Promise<void>;
 }
 
-const POSTER_KEY_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/i;
-
 const DEFAULT_STORAGE_ROOT = path.join(process.cwd(), ".data", "posters");
 
-export function isPosterStorageKey(value: string): boolean {
-  return POSTER_KEY_PATTERN.test(value);
-}
-
 function storageError(): DomainError {
-  return new DomainError(
-    "STORAGE_ERROR",
-    "The poster file could not be processed. Please try again.",
-    500,
-  );
+  return posterStorageError();
 }
 
 function resolveKey(root: string, key: string): string {
@@ -128,18 +123,53 @@ export function createLocalPosterStorage(root = DEFAULT_STORAGE_ROOT): PosterSto
 }
 
 let cachedStorage: PosterStorage | null = null;
-let cachedRoot: string | null = null;
+let cachedStorageKey: string | null = null;
 
 /**
- * The adapter is selected at call time so tests and deployments can set
- * POSTER_STORAGE_DIR without importing a second storage implementation.
+ * The adapter is selected at call time so tests and deployments can choose the
+ * local driver or a durable S3-compatible bucket without importing a second
+ * storage implementation. `POSTER_STORAGE_DIR` remains readable from the raw
+ * environment so tests can isolate a filesystem root per case.
  */
 export function getPosterStorage(): PosterStorage {
-  const root = process.env.POSTER_STORAGE_DIR?.trim() || DEFAULT_STORAGE_ROOT;
+  if (env.POSTER_STORAGE_DRIVER === "s3") {
+    const selectionKey = [
+      "s3",
+      env.S3_ENDPOINT,
+      env.S3_REGION,
+      env.S3_BUCKET,
+      env.S3_ACCESS_KEY_ID,
+      env.S3_SECRET_ACCESS_KEY,
+      env.S3_SESSION_TOKEN ?? "",
+      env.S3_FORCE_PATH_STYLE ? "path" : "virtual",
+      env.S3_PREFIX ?? "",
+    ].join("|");
 
-  if (!cachedStorage || cachedRoot !== root) {
+    if (!cachedStorage || cachedStorageKey !== selectionKey) {
+      cachedStorage = createS3PosterStorage({
+        endpoint: env.S3_ENDPOINT!,
+        region: env.S3_REGION!,
+        bucket: env.S3_BUCKET!,
+        accessKeyId: env.S3_ACCESS_KEY_ID!,
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
+        sessionToken: env.S3_SESSION_TOKEN,
+        forcePathStyle: env.S3_FORCE_PATH_STYLE,
+        prefix: env.S3_PREFIX,
+      });
+      cachedStorageKey = selectionKey;
+    }
+
+    return cachedStorage;
+  }
+
+  const root =
+    env.POSTER_STORAGE_DIR?.trim() ||
+    process.env.POSTER_STORAGE_DIR?.trim() ||
+    DEFAULT_STORAGE_ROOT;
+
+  if (!cachedStorage || cachedStorageKey !== root) {
     cachedStorage = createLocalPosterStorage(root);
-    cachedRoot = root;
+    cachedStorageKey = root;
   }
 
   return cachedStorage;

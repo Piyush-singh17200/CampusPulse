@@ -3,7 +3,7 @@ import type { NavItem } from "@/types";
 
 export const siteConfig = {
   name: "CampusPulse",
-  tagline: "Discover what's happening on campus.",
+  tagline: "Too many posters. Too little signal.",
   description:
     "CampusPulse brings campus events, clubs, and administrators into one clear, moderated discovery layer — so students find the right events and campuses see the whole picture.",
   url: publicEnv.NEXT_PUBLIC_APP_URL,

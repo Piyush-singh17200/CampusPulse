@@ -22,7 +22,7 @@ export function LandingPage() {
 
       <SiteHeader />
 
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1} className="focus:outline-none">
         <HeroSection />
         <DiscoverySection />
         <ProblemSection />

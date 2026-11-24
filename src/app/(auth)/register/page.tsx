@@ -18,11 +18,16 @@ export default async function RegisterPage() {
     redirect("/account");
   }
 
-  const colleges = await prisma.college.findMany({
-    where: { status: "ACTIVE", deletedAt: null },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, shortName: true },
-  });
+  let colleges: Array<{ id: string; name: string; shortName: string | null }> = [];
+  try {
+    colleges = await prisma.college.findMany({
+      where: { status: "ACTIVE", deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, shortName: true },
+    });
+  } catch (error) {
+    console.error("Failed to load colleges for registration:", error);
+  }
 
   return (
     <AuthShell

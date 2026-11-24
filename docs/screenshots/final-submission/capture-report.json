@@ -1,0 +1,460 @@
+{
+  "capturedAt": "2026-11-22T14:56:47.894Z",
+  "baseURL": "http://localhost:3000",
+  "screenshots": 27,
+  "viewportAudit": [
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 360,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 390,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 768,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 1024,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 1280,
+      "overflow": 0
+    },
+    {
+      "role": "public",
+      "path": "/",
+      "status": 200,
+      "title": "CampusPulse — Too many posters. Too little signal.",
+      "h1": "Too many posters.Too little signal.",
+      "width": 360,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student",
+      "status": 200,
+      "title": "Student overview | CampusPulse",
+      "h1": "Welcome back, Isha.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/discover",
+      "status": 200,
+      "title": "Discover events",
+      "h1": "Find your next campus moment.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/events/fd4984af-f457-4803-a9b9-328c1135fcf8",
+      "status": 200,
+      "title": "Event details",
+      "h1": "Open Mic Debate Night (Demo)",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/registrations",
+      "status": 200,
+      "title": "My events",
+      "h1": "Registrations, past and upcoming.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/saved",
+      "status": 200,
+      "title": "Saved events",
+      "h1": "Your private shortlist.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/calendar",
+      "status": 200,
+      "title": "Calendar",
+      "h1": "Your campus schedule.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/feedback",
+      "status": 200,
+      "title": "Feedback",
+      "h1": "Tell organizers what worked.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/notifications",
+      "status": 200,
+      "title": "Notifications",
+      "h1": "Updates from your campus.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/profile",
+      "status": 200,
+      "title": "Student profile",
+      "h1": "The details behind your dashboard.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student/calendar",
+      "status": 200,
+      "title": "Calendar",
+      "h1": "Your campus schedule.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student",
+      "status": 200,
+      "title": "Student overview | CampusPulse",
+      "h1": "Welcome back, Isha.",
+      "width": 360,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student",
+      "status": 200,
+      "title": "Student overview | CampusPulse",
+      "h1": "Welcome back, Isha.",
+      "width": 390,
+      "overflow": 0
+    },
+    {
+      "role": "student",
+      "path": "/student",
+      "status": 200,
+      "title": "Student overview | CampusPulse",
+      "h1": "Welcome back, Isha.",
+      "width": 1280,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club",
+      "status": 200,
+      "title": "Club overview | CampusPulse",
+      "h1": "Northfield Robotics Society (Demo)",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/events",
+      "status": 200,
+      "title": "Club events",
+      "h1": "Every event, one clear lifecycle.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/events/create",
+      "status": 200,
+      "title": "Create event",
+      "h1": "Start with a clear draft.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/registrations",
+      "status": 200,
+      "title": "Club registrations",
+      "h1": "Who is coming.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/attendance",
+      "status": 200,
+      "title": "Attendance",
+      "h1": "Record who showed up.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/feedback",
+      "status": 200,
+      "title": "Club feedback",
+      "h1": "What students are saying.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/analytics",
+      "status": 200,
+      "title": "Club analytics",
+      "h1": "How your club is moving.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/settings",
+      "status": 200,
+      "title": "Club settings",
+      "h1": "Club profile and boundaries.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/attendance",
+      "status": 200,
+      "title": "Attendance",
+      "h1": "Record who showed up.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club/analytics",
+      "status": 200,
+      "title": "Club analytics",
+      "h1": "How your club is moving.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "club",
+      "path": "/club",
+      "status": 200,
+      "title": "Club overview | CampusPulse",
+      "h1": "Northfield Robotics Society (Demo)",
+      "width": 390,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college",
+      "status": 200,
+      "title": "College overview | CampusPulse",
+      "h1": "Northfield University (Demo)",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/approvals",
+      "status": 200,
+      "title": "Approvals",
+      "h1": "Decisions that keep campus activity trustworthy.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/events",
+      "status": 200,
+      "title": "College events",
+      "h1": "Every event in your college.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/clubs",
+      "status": 200,
+      "title": "College clubs",
+      "h1": "The organizations behind campus events.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/users",
+      "status": 200,
+      "title": "College users",
+      "h1": "Manage the college community.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/feedback",
+      "status": 200,
+      "title": "College feedback",
+      "h1": "Moderate campus feedback.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/analytics",
+      "status": 200,
+      "title": "College analytics",
+      "h1": "A factual view of campus activity.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/audit-logs",
+      "status": 200,
+      "title": "Audit logs",
+      "h1": "A durable record of administrative actions.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college/settings",
+      "status": 200,
+      "title": "College settings",
+      "h1": "College profile and boundaries.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "college",
+      "path": "/college",
+      "status": 200,
+      "title": "College overview | CampusPulse",
+      "h1": "Northfield University (Demo)",
+      "width": 768,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform",
+      "status": 200,
+      "title": "Platform overview | CampusPulse",
+      "h1": "The whole network, at a glance.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/colleges",
+      "status": 200,
+      "title": "Platform colleges",
+      "h1": "Colleges on CampusPulse.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/users",
+      "status": 200,
+      "title": "Platform users",
+      "h1": "Every account, with tenant context.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/analytics",
+      "status": 200,
+      "title": "Platform analytics",
+      "h1": "Network-level activity, without estimates.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/audit-logs",
+      "status": 200,
+      "title": "Platform audit history",
+      "h1": "Every administrative action, across every tenant.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/settings",
+      "status": 200,
+      "title": "Platform settings",
+      "h1": "Platform boundaries and operational status.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/settings",
+      "status": 200,
+      "title": "Platform settings",
+      "h1": "Platform boundaries and operational status.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform/audit-logs",
+      "status": 200,
+      "title": "Platform audit history",
+      "h1": "Every administrative action, across every tenant.",
+      "width": 1440,
+      "overflow": 0
+    },
+    {
+      "role": "platform",
+      "path": "/platform",
+      "status": 200,
+      "title": "Platform overview | CampusPulse",
+      "h1": "The whole network, at a glance.",
+      "width": 1024,
+      "overflow": 0
+    }
+  ],
+  "consoleErrors": [],
+  "overflowFailures": [],
+  "nonSuccessRoutes": []
+}

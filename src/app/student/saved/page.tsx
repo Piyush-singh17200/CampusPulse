@@ -26,9 +26,14 @@ export default async function StudentSavedPage() {
         title="Your private shortlist."
         description="Saved events live in your CampusPulse account, so they are here when you return on another device."
         actions={
-          <Link href="/student/discover" className={buttonStyles({ variant: "outline" })}>
-            Discover more
-          </Link>
+          <>
+            <a href="/api/calendar/saved" className={buttonStyles({ variant: "outline" })}>
+              Download saved events (.ics)
+            </a>
+            <Link href="/student/discover" className={buttonStyles({ variant: "outline" })}>
+              Discover more
+            </Link>
+          </>
         }
       />
 

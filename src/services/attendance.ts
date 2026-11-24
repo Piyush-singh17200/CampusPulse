@@ -64,6 +64,11 @@ export function isAttendanceWindowOpen(startsAt: Date, endsAt: Date, now = new D
   return now >= window.opensAt && now <= window.closesAt;
 }
 
+/** Manual attendance corrections are allowed only after the event has started. */
+export function hasEventStarted(startsAt: Date, now = new Date()): boolean {
+  return startsAt <= now;
+}
+
 function assertCanManageEventAttendance(
   actor: AuthenticatedActor,
   event: {
@@ -487,7 +492,7 @@ export async function correctAttendance(actor: AuthenticatedActor, input: unknow
     if (!["PUBLISHED", "COMPLETED"].includes(registration.event.status)) {
       throw new InvalidTransitionError("Attendance is only available for published events.");
     }
-    if (registration.event.startsAt > new Date()) {
+    if (!hasEventStarted(registration.event.startsAt)) {
       throw new InvalidTransitionError("Attendance cannot be recorded before the event starts.");
     }
     if (registration.status === "CANCELLED") {
@@ -598,7 +603,7 @@ export async function markAttendance(actor: AuthenticatedActor, input: unknown) 
       throw new InvalidTransitionError("Attendance is only available for published events.");
     }
 
-    if (registration.event.startsAt > new Date()) {
+    if (!hasEventStarted(registration.event.startsAt)) {
       throw new InvalidTransitionError("Attendance cannot be recorded before the event starts.");
     }
 

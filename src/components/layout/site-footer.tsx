@@ -20,7 +20,7 @@ export function SiteFooter() {
             <p className="mt-4 text-sm leading-6 text-muted">{siteConfig.description}</p>
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-line-strong px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-muted">
               <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-              Development preview
+              Academic demonstration build
             </div>
           </div>
 
@@ -63,9 +63,9 @@ export function SiteFooter() {
               Foundation
             </p>
             <ul className="mt-4 space-y-2.5 text-sm text-muted">
-              <li>Next.js + React</li>
-              <li>PostgreSQL + Prisma</li>
-              <li>Multi-tenant by design</li>
+              <li>Role-based access</li>
+              <li>Moderated publishing</li>
+              <li>Audit-ready operations</li>
             </ul>
             <a
               href="#top"
@@ -79,10 +79,7 @@ export function SiteFooter() {
 
         <div className="flex flex-col justify-between gap-3 pt-6 text-[10px] leading-5 text-muted sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} CampusPulse. Built for multi-college campuses.</p>
-          <p>
-            Foundation release · Authentication, live registrations, and production data are not
-            connected yet.
-          </p>
+          <p>Demonstration data is fictional. Production deployment remains owner-gated.</p>
         </div>
       </Container>
     </footer>

@@ -25,9 +25,14 @@ export default async function StudentCalendarPage() {
         title="Your campus schedule."
         description="Registered events are grouped by the date they start in your college timezone."
         actions={
-          <Link href="/student/registrations" className={buttonStyles({ variant: "outline" })}>
-            Registration history
-          </Link>
+          <>
+            <a href="/api/calendar/registered" className={buttonStyles({ variant: "outline" })}>
+              Download registered events (.ics)
+            </a>
+            <Link href="/student/registrations" className={buttonStyles({ variant: "outline" })}>
+              Registration history
+            </Link>
+          </>
         }
       />
 

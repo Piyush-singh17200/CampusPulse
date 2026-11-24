@@ -42,9 +42,12 @@ cloud OCR API is used.
 
 `ocrStartedAt` and `ocrCompletedAt` record timing. The claim is an atomic
 `updateMany` guarded by the current status. A second request while the first is
-running returns the current state instead of starting a second worker. Failed
-attempts can be retried. A retry clears old extracted fields and review state
-before writing a new set.
+running returns the current state instead of starting a second worker. A
+`PENDING`/`PROCESSING` claim older than the worker deadline plus a safety margin
+is recovered as a safe failure, so a crashed process cannot block OCR forever.
+The engine deadline covers worker download/startup as well as recognition, and a
+worker that appears after timeout is terminated. Failed attempts can be retried.
+A retry clears old extracted fields and review state before writing a new set.
 
 Failure handling is deliberately safe: raw worker errors are logged on the
 server, but the poster stores a generic user-facing message. The event is never
@@ -287,8 +290,8 @@ Prompt 7 adds focused service tests:
   revalidation and audit metadata.
 
 Prompt 7 also adds `tests/e2e/prompt-7.spec.ts`, covering the browser workflow
-and responsive screenshots. Final verification for this phase passed 24 Vitest
-files / 189 tests and both Playwright workflows (Prompt 6 and Prompt 7).
+and responsive screenshots. Prompt 8 extends the suite to 28 Vitest files / 215
+tests and adds the Prompt 8 Playwright workflow.
 
 Run:
 
@@ -297,7 +300,7 @@ npm test
 npm run test:e2e
 ```
 
-The Prompt 7 suite was verified with 24 test files / 189 tests passing.
+The full suite was verified with 28 test files / 215 tests passing.
 
 ## 8. Limitations
 

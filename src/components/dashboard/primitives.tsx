@@ -88,30 +88,64 @@ export function MetricCard({
   icon?: ReactNode;
   tone?: "default" | "forest" | "signal" | "ink";
 }) {
-  const toneClasses = {
-    default: "bg-paper text-ink",
-    forest: "bg-forest text-paper",
-    signal: "bg-signal text-ink",
-    ink: "bg-ink text-paper",
+  const surfaceClasses = {
+    default: "border-line bg-paper text-ink",
+    forest: "border-line bg-paper text-ink",
+    signal: "border-line bg-paper text-ink",
+    ink: "border-ink bg-ink text-paper",
   }[tone];
 
-  const mutedClasses = {
+  const labelClasses = {
     default: "text-muted",
-    forest: "text-paper/65",
-    signal: "text-ink/60",
-    ink: "text-paper/60",
+    forest: "text-forest",
+    signal: "text-signal-dark",
+    ink: "text-paper/55",
+  }[tone];
+
+  const detailClasses = {
+    default: "text-muted",
+    forest: "text-muted",
+    signal: "text-muted",
+    ink: "text-paper/55",
+  }[tone];
+
+  const accentClasses = {
+    default: "bg-line-strong",
+    forest: "bg-forest",
+    signal: "bg-signal",
+    ink: "bg-signal",
+  }[tone];
+
+  const iconClasses = {
+    default: "bg-paper-dim text-muted",
+    forest: "bg-forest-soft text-forest",
+    signal: "bg-signal/15 text-signal-dark",
+    ink: "bg-paper/10 text-signal",
   }[tone];
 
   return (
-    <div className={cn("rounded-xl border border-line p-4 shadow-card sm:p-5", toneClasses)}>
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl border p-4 shadow-card sm:p-5",
+        surfaceClasses,
+      )}
+    >
+      <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-[3px]", accentClasses)} />
       <div className="flex items-start justify-between gap-3">
-        <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", mutedClasses)}>
+        <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", labelClasses)}>
           {label}
         </p>
-        {icon ? <span className={cn("shrink-0", mutedClasses)}>{icon}</span> : null}
+        {icon ? (
+          <span
+            aria-hidden="true"
+            className={cn("grid size-7 shrink-0 place-items-center rounded-full", iconClasses)}
+          >
+            {icon}
+          </span>
+        ) : null}
       </div>
       <p className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-4xl">{value}</p>
-      {detail ? <div className={cn("mt-2 text-xs leading-5", mutedClasses)}>{detail}</div> : null}
+      {detail ? <div className={cn("mt-2 text-xs leading-5", detailClasses)}>{detail}</div> : null}
     </div>
   );
 }

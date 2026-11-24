@@ -1,4 +1,5 @@
 import { ArrowUpRight, CheckCircle2, ClipboardCheck, ScrollText, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/ui/container";
@@ -85,13 +86,13 @@ function CollegePreview() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-forest"
+          <Link
+            href="/login"
+            className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] text-forest transition-colors hover:text-signal-dark"
           >
-            Open review queue
+            Sign in to review
             <ArrowUpRight aria-hidden="true" className="size-3" />
-          </button>
+          </Link>
         </div>
 
         <div className="border-t border-line pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">

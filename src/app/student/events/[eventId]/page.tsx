@@ -48,6 +48,13 @@ export default async function StudentEventPage({
   const full = event.capacity !== null && activeCount >= event.capacity;
   const registered = registration?.status === "CONFIRMED";
   const canRegister = !registered && !registrationClosed && !full && event.status === "PUBLISHED";
+  const registerLabel = registered
+    ? "Registered"
+    : !canRegister
+      ? "Registration unavailable"
+      : registration?.status === "CANCELLED"
+        ? "Register again"
+        : "Register for this event";
 
   return (
     <div className="space-y-6">
@@ -263,14 +270,6 @@ export default async function StudentEventPage({
                   Your previous registration was cancelled. You can register again if the event is
                   still open.
                 </p>
-                {canRegister ? (
-                  <ActionForm
-                    action={registerForEventAction}
-                    fields={{ eventId: event.id }}
-                    submitLabel="Register again"
-                    variant="signal"
-                  />
-                ) : null}
               </div>
             ) : (
               <div className="space-y-4">
@@ -281,19 +280,21 @@ export default async function StudentEventPage({
                       ? "This event has reached capacity."
                       : "Reserve your place. You can cancel later from My events."}
                 </p>
-                {canRegister ? (
-                  <ActionForm
-                    action={registerForEventAction}
-                    fields={{ eventId: event.id }}
-                    submitLabel="Register for this event"
-                    variant="signal"
-                    size="md"
-                  />
-                ) : (
-                  <p className="rounded-md border border-line bg-canvas/70 px-3 py-2 text-xs text-muted">
-                    Registration is unavailable.
-                  </p>
-                )}
+              </div>
+            )}
+            {registered ||
+            registration?.status === "ATTENDED" ||
+            registration?.status === "NO_SHOW" ? null : (
+              <div className="mt-4">
+                <ActionForm
+                  action={registerForEventAction}
+                  fields={{ eventId: event.id }}
+                  submitLabel={registerLabel}
+                  pendingLabel="Registering."
+                  variant="signal"
+                  size="md"
+                  disabled={!canRegister}
+                />
               </div>
             )}
           </SectionCard>

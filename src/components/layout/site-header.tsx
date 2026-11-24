@@ -78,7 +78,7 @@ export function SiteHeader() {
         <div className="hidden items-center gap-2 lg:flex">
           <Badge variant="outline" className="hidden xl:inline-flex">
             <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-            Preview build
+            Four role workspaces
           </Badge>
           <ButtonLink href="/login" variant="ghost" size="sm">
             Sign in

@@ -5,10 +5,12 @@ import { prisma } from "@/server/db/client";
 import {
   assertClubDashboard,
   assertCollegeDashboard,
+  assertStudentDashboard,
   managedClubIds,
 } from "@/server/dashboards/access";
 import { TenantIsolationError } from "@/server/errors";
 import { feedbackWindowClosesAt } from "@/services/feedback";
+import { uuidSchema } from "@/services/validation";
 
 const feedbackInclude = {
   studentProfile: {
@@ -21,16 +23,9 @@ const feedbackInclude = {
   moderatedBy: { select: { name: true } },
 } satisfies Prisma.EventFeedbackInclude;
 
-export async function getStudentFeedback(actor: Parameters<typeof assertClubDashboard>[0]) {
-  const collegeId = actor.collegeId;
-
-  if (!collegeId) {
-    return {
-      timezone: "Asia/Kolkata",
-      rows: [] as never[],
-      counts: { available: 0, submitted: 0 },
-    };
-  }
+export async function getStudentFeedback(actor: Parameters<typeof assertStudentDashboard>[0]) {
+  assertStudentDashboard(actor);
+  const collegeId = actor.collegeId!;
 
   const [profile, college] = await Promise.all([
     prisma.studentProfile.findUnique({
@@ -43,9 +38,13 @@ export async function getStudentFeedback(actor: Parameters<typeof assertClubDash
     }),
   ]);
 
+  if (!college) {
+    throw new TenantIsolationError();
+  }
+
   if (!profile) {
     return {
-      timezone: college?.timezone ?? "Asia/Kolkata",
+      timezone: college.timezone,
       rows: [] as never[],
       counts: { available: 0, submitted: 0 },
     };
@@ -69,6 +68,7 @@ export async function getStudentFeedback(actor: Parameters<typeof assertClubDash
           startsAt: true,
           endsAt: true,
           completedAt: true,
+          status: true,
           venueName: true,
           isOnline: true,
           club: { select: { name: true } },
@@ -113,7 +113,7 @@ export async function getStudentFeedback(actor: Parameters<typeof assertClubDash
   });
 
   return {
-    timezone: college?.timezone ?? "Asia/Kolkata",
+    timezone: college.timezone,
     rows,
     counts: {
       available: rows.filter((row) => row.canSubmit).length,
@@ -172,7 +172,7 @@ export async function getClubFeedback(
     };
   }
 
-  const events = await prisma.event.findMany({
+  let events = await prisma.event.findMany({
     where: {
       collegeId,
       clubId: club.id,
@@ -183,13 +183,32 @@ export async function getClubFeedback(
     orderBy: { startsAt: "desc" },
     take: 100,
   });
+  const requestedEventId =
+    filters.eventId && uuidSchema.safeParse(filters.eventId).success ? filters.eventId : "";
 
-  const selectedEvent = filters.eventId
-    ? (events.find((event) => event.id === filters.eventId) ?? null)
+  let selectedEvent = requestedEventId
+    ? (events.find((event) => event.id === requestedEventId) ?? null)
     : (events[0] ?? null);
 
-  if (filters.eventId && !selectedEvent) {
-    throw new TenantIsolationError();
+  if (requestedEventId && !selectedEvent) {
+    // Old bookmarked feedback links may point at an event outside the latest
+    // 100. Resolve it explicitly within this club's tenant boundary.
+    selectedEvent = await prisma.event.findFirst({
+      where: {
+        id: requestedEventId,
+        collegeId,
+        clubId: club.id,
+        deletedAt: null,
+        status: "COMPLETED",
+      },
+      select: { id: true, title: true, startsAt: true },
+    });
+
+    if (!selectedEvent) {
+      throw new TenantIsolationError();
+    }
+
+    events = [selectedEvent, ...events];
   }
 
   if (!selectedEvent) {
@@ -220,7 +239,7 @@ export async function getClubFeedback(
   const status =
     filters.status === "VISIBLE" || filters.status === "HIDDEN" ? filters.status : "ALL";
   const pageSize = 20;
-  const page = Math.max(filters.page ?? 1, 1);
+  const requestedPage = Math.max(filters.page ?? 1, 1);
 
   const where: Prisma.EventFeedbackWhereInput = {
     collegeId,
@@ -229,14 +248,7 @@ export async function getClubFeedback(
     ...(status === "ALL" ? {} : { moderationStatus: status }),
   };
 
-  const [feedback, total, visibleAggregate, hiddenCount, distribution] = await Promise.all([
-    prisma.eventFeedback.findMany({
-      where,
-      include: feedbackInclude,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+  const [total, visibleAggregate, hiddenCount, distribution] = await Promise.all([
     prisma.eventFeedback.count({ where }),
     prisma.eventFeedback.aggregate({
       where: { collegeId, eventId: selectedEvent.id, moderationStatus: "VISIBLE" },
@@ -253,6 +265,15 @@ export async function getClubFeedback(
       orderBy: { rating: "asc" },
     }),
   ]);
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const feedback = await prisma.eventFeedback.findMany({
+    where,
+    include: feedbackInclude,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
 
   return {
     clubs,
@@ -263,7 +284,7 @@ export async function getClubFeedback(
     total,
     page,
     pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1),
+    totalPages,
     filters: { rating: rating ? String(rating) : "", status, eventId: selectedEvent.id },
     summary: {
       averageRating: visibleAggregate._avg.rating,
@@ -277,6 +298,7 @@ export async function getClubFeedback(
 
 export type CollegeFeedbackFilters = {
   eventId?: string;
+  clubId?: string;
   rating?: string;
   status?: string;
   page?: number;
@@ -296,80 +318,144 @@ export async function getCollegeFeedback(
     throw new TenantIsolationError();
   }
 
-  const events = await prisma.event.findMany({
-    where: { collegeId, deletedAt: null, status: "COMPLETED" },
-    select: { id: true, title: true, startsAt: true, club: { select: { name: true } } },
-    orderBy: { startsAt: "desc" },
-    take: 100,
-  });
+  const clubId =
+    filters.clubId && uuidSchema.safeParse(filters.clubId).success ? filters.clubId : "";
+  const [clubs, initialEvents] = await Promise.all([
+    prisma.club.findMany({
+      where: { collegeId, deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.event.findMany({
+      where: {
+        collegeId,
+        deletedAt: null,
+        status: "COMPLETED",
+        ...(clubId ? { clubId } : {}),
+      },
+      select: { id: true, title: true, startsAt: true, club: { select: { name: true } } },
+      orderBy: { startsAt: "desc" },
+      take: 100,
+    }),
+  ]);
+  let events = initialEvents;
 
-  const selectedEventId = filters.eventId ?? "";
+  if (clubId && !clubs.some((club) => club.id === clubId)) {
+    throw new TenantIsolationError();
+  }
+
+  const selectedEventId =
+    filters.eventId && uuidSchema.safeParse(filters.eventId).success ? filters.eventId : "";
+
+  if (selectedEventId && !events.some((event) => event.id === selectedEventId)) {
+    const selectedEvent = await prisma.event.findFirst({
+      where: {
+        id: selectedEventId,
+        collegeId,
+        deletedAt: null,
+        status: "COMPLETED",
+        ...(clubId ? { clubId } : {}),
+      },
+      select: { id: true, title: true, startsAt: true, club: { select: { name: true } } },
+    });
+
+    if (!selectedEvent) {
+      throw new TenantIsolationError();
+    }
+
+    events = [selectedEvent, ...events];
+  }
+
   const rating = ["1", "2", "3", "4", "5"].includes(filters.rating ?? "")
     ? Number(filters.rating)
     : null;
   const status =
     filters.status === "VISIBLE" || filters.status === "HIDDEN" ? filters.status : "ALL";
   const pageSize = 20;
-  const page = Math.max(filters.page ?? 1, 1);
+  const requestedPage = Math.max(filters.page ?? 1, 1);
 
   const where: Prisma.EventFeedbackWhereInput = {
     collegeId,
     ...(selectedEventId ? { eventId: selectedEventId } : {}),
+    ...(clubId ? { event: { clubId } } : {}),
     ...(rating ? { rating } : {}),
     ...(status === "ALL" ? {} : { moderationStatus: status }),
   };
 
-  const [feedback, total, visibleAggregate, hiddenCount, distribution, eventSummary] =
-    await Promise.all([
-      prisma.eventFeedback.findMany({
-        where,
-        include: {
-          ...feedbackInclude,
-          event: {
-            select: { id: true, title: true, startsAt: true, club: { select: { name: true } } },
-          },
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.eventFeedback.count({ where }),
-      prisma.eventFeedback.aggregate({
-        where: {
-          collegeId,
-          ...(selectedEventId ? { eventId: selectedEventId } : {}),
-          moderationStatus: "VISIBLE",
-        },
-        _avg: { rating: true },
-        _count: { _all: true },
-      }),
-      prisma.eventFeedback.count({
-        where: {
-          collegeId,
-          ...(selectedEventId ? { eventId: selectedEventId } : {}),
-          moderationStatus: "HIDDEN",
-        },
-      }),
-      prisma.eventFeedback.groupBy({
-        by: ["rating"],
-        where: {
-          collegeId,
-          ...(selectedEventId ? { eventId: selectedEventId } : {}),
-          moderationStatus: "VISIBLE",
-        },
-        _count: { _all: true },
-        orderBy: { rating: "asc" },
-      }),
-      prisma.eventFeedback.groupBy({
-        by: ["eventId"],
-        where: { collegeId, moderationStatus: "VISIBLE" },
-        _avg: { rating: true },
-        _count: { _all: true },
-        orderBy: { eventId: "asc" },
-      }),
-    ]);
+  const [total, visibleAggregate, hiddenCount, distribution, eventSummary] = await Promise.all([
+    prisma.eventFeedback.count({ where }),
+    prisma.eventFeedback.aggregate({
+      where: {
+        collegeId,
+        ...(selectedEventId ? { eventId: selectedEventId } : {}),
+        ...(clubId ? { event: { clubId } } : {}),
+        moderationStatus: "VISIBLE",
+      },
+      _avg: { rating: true },
+      _count: { _all: true },
+    }),
+    prisma.eventFeedback.count({
+      where: {
+        collegeId,
+        ...(selectedEventId ? { eventId: selectedEventId } : {}),
+        ...(clubId ? { event: { clubId } } : {}),
+        moderationStatus: "HIDDEN",
+      },
+    }),
+    prisma.eventFeedback.groupBy({
+      by: ["rating"],
+      where: {
+        collegeId,
+        ...(selectedEventId ? { eventId: selectedEventId } : {}),
+        ...(clubId ? { event: { clubId } } : {}),
+        moderationStatus: "VISIBLE",
+      },
+      _count: { _all: true },
+      orderBy: { rating: "asc" },
+    }),
+    prisma.eventFeedback.groupBy({
+      by: ["eventId"],
+      where: {
+        collegeId,
+        ...(selectedEventId ? { eventId: selectedEventId } : {}),
+        ...(clubId ? { event: { clubId } } : {}),
+        moderationStatus: "VISIBLE",
+      },
+      _avg: { rating: true },
+      _count: { _all: true },
+      orderBy: { eventId: "asc" },
+    }),
+  ]);
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const feedback = await prisma.eventFeedback.findMany({
+    where,
+    include: {
+      ...feedbackInclude,
+      event: {
+        select: { id: true, title: true, startsAt: true, club: { select: { name: true } } },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
 
   const eventTitleById = new Map(events.map((event) => [event.id, event.title]));
+  const missingEventIds = eventSummary
+    .map((row) => row.eventId)
+    .filter((eventId) => !eventTitleById.has(eventId));
+
+  if (missingEventIds.length) {
+    const missingEvents = await prisma.event.findMany({
+      where: { collegeId, id: { in: missingEventIds }, deletedAt: null },
+      select: { id: true, title: true },
+    });
+    for (const event of missingEvents) {
+      eventTitleById.set(event.id, event.title);
+    }
+  }
+
   const feedbackByEvent = eventSummary
     .map((row) => ({
       eventId: row.eventId,
@@ -381,13 +467,14 @@ export async function getCollegeFeedback(
 
   return {
     college,
+    clubs,
     events,
     feedback,
     total,
     page,
     pageSize,
-    totalPages: Math.max(Math.ceil(total / pageSize), 1),
-    filters: { rating: rating ? String(rating) : "", status, eventId: selectedEventId },
+    totalPages,
+    filters: { rating: rating ? String(rating) : "", status, eventId: selectedEventId, clubId },
     summary: {
       averageRating: visibleAggregate._avg.rating,
       responseCount: visibleAggregate._count._all,

@@ -9,6 +9,8 @@ const TABLES = [
   "auth_audit_events",
   "event_duplicates",
   "event_feedback",
+  "attendance_credentials",
+  "notification_preferences",
   "poster_ocr_fields",
   "event_posters",
   "event_registrations",

@@ -1,17 +1,20 @@
 # CampusPulse database architecture
 
-This document describes the PostgreSQL/Prisma layer through Prompt 7. The
+This document describes the PostgreSQL/Prisma layer through Prompt 8. The
 database includes Better Auth session/account tables, custom reset, rate-limit,
 and anonymous auth-audit tables, persistent saved events for the student
 dashboard, poster metadata and audit actions, transactional in-app
-notifications for event moderation and registration changes, and the Prompt 7
+notifications for event moderation and registration changes, the Prompt 7
 event-intelligence tables for OCR review, event interests, and advisory
-duplicate review. The business services and dashboard queries remain server-only
-building blocks and are not exposed through public business API routes; auth and
-dashboard mutations run through Server Actions. Poster bytes live in the
+duplicate review, and the Prompt 8 attendance-credential and notification-
+preference tables plus feedback moderation fields. The business services and
+dashboard queries remain server-only building blocks and are not exposed through
+public business API routes; auth, dashboard mutations, and authenticated
+downloads run through Server Actions or route handlers. Poster bytes live in the
 configured storage adapter, not in PostgreSQL; see `docs/poster-storage.md`.
-See `docs/event-intelligence.md` for OCR, recommendation, duplicate, and
-schedule-conflict behavior.
+See `docs/event-intelligence.md` and `docs/attendance-feedback-analytics.md` for
+OCR, recommendation, duplicate, schedule-conflict, attendance, feedback,
+calendar, export, and analytics behavior.
 
 ## 1. Design principles
 
@@ -34,29 +37,31 @@ schedule-conflict behavior.
 
 ## 2. Models
 
-The schema has 25 models. The 19 business models are:
+The schema has 27 models. The 21 business models are:
 
-| Model               | Purpose                                         | Tenant key                                |
-| ------------------- | ----------------------------------------------- | ----------------------------------------- |
-| `College`           | Tenant root and settings                        | own `id`                                  |
-| `User`              | Student, club admin, college admin, super admin | `collegeId` nullable for platform admins  |
-| `StudentProfile`    | Student identity within a college               | `collegeId`                               |
-| `Club`              | Student organization                            | `collegeId`                               |
-| `ClubMembership`    | User membership and club role                   | `collegeId`                               |
-| `Interest`          | Platform-wide interest taxonomy                 | global                                    |
-| `StudentInterest`   | Student-interest join                           | `collegeId`                               |
-| `SavedEvent`        | Persistent student event shortlist              | `collegeId`                               |
-| `Category`          | College-specific event category                 | `collegeId`                               |
-| `Event`             | Event and lifecycle state                       | `collegeId`                               |
-| `EventCategory`     | Event-category join                             | `collegeId`                               |
-| `EventInterest`     | Event-interest join for recommendations         | `collegeId`                               |
-| `EventRegistration` | Student registration                            | `collegeId`                               |
-| `EventPoster`       | Poster metadata, dimensions, and OCR state      | `collegeId`                               |
-| `PosterOcrField`    | Per-field OCR extraction and human review       | `collegeId`                               |
-| `EventFeedback`     | Post-event feedback                             | `collegeId`                               |
-| `Notification`      | User notification                               | `collegeId`                               |
-| `EventDuplicate`    | Moderation duplicate candidate                  | `collegeId`                               |
-| `AuditLog`          | Immutable-by-convention audit trail             | `collegeId` nullable for platform actions |
+| Model                    | Purpose                                         | Tenant key                                |
+| ------------------------ | ----------------------------------------------- | ----------------------------------------- |
+| `College`                | Tenant root and settings                        | own `id`                                  |
+| `User`                   | Student, club admin, college admin, super admin | `collegeId` nullable for platform admins  |
+| `StudentProfile`         | Student identity within a college               | `collegeId`                               |
+| `Club`                   | Student organization                            | `collegeId`                               |
+| `ClubMembership`         | User membership and club role                   | `collegeId`                               |
+| `Interest`               | Platform-wide interest taxonomy                 | global                                    |
+| `StudentInterest`        | Student-interest join                           | `collegeId`                               |
+| `SavedEvent`             | Persistent student event shortlist              | `collegeId`                               |
+| `Category`               | College-specific event category                 | `collegeId`                               |
+| `Event`                  | Event and lifecycle state                       | `collegeId`                               |
+| `EventCategory`          | Event-category join                             | `collegeId`                               |
+| `EventInterest`          | Event-interest join for recommendations         | `collegeId`                               |
+| `EventRegistration`      | Student registration                            | `collegeId`                               |
+| `AttendanceCredential`   | Event-bound hashed QR check-in credential       | `collegeId`                               |
+| `EventPoster`            | Poster metadata, dimensions, and OCR state      | `collegeId`                               |
+| `PosterOcrField`         | Per-field OCR extraction and human review       | `collegeId`                               |
+| `EventFeedback`          | Post-event feedback and moderation state        | `collegeId`                               |
+| `Notification`           | User notification                               | `collegeId`                               |
+| `NotificationPreference` | Per-user optional in-app notification settings  | `collegeId`                               |
+| `EventDuplicate`         | Moderation duplicate candidate                  | `collegeId`                               |
+| `AuditLog`               | Immutable-by-convention audit trail             | `collegeId` nullable for platform actions |
 
 The six auth/security models are:
 
@@ -102,7 +107,12 @@ without resetting existing data. The additive
 The additive
 `prisma/migrations/20261113000000_prompt7_event_intelligence/migration.sql` adds
 the OCR enums, `event_interests`, `poster_ocr_fields`, OCR timestamps/error and
-composite poster uniqueness, and duplicate review reasons/indexes. Existing
+composite poster uniqueness, and duplicate review reasons/indexes. The additive
+`prisma/migrations/20261115000000_prompt8_event_operations/migration.sql` adds
+`attendance_credentials` and `notification_preferences`, feedback moderation
+fields and index, the `FeedbackModerationStatus` enum, attendance/feedback/
+preference audit actions, `ATTENDANCE_UPDATE`/`FEEDBACK_UPDATE` notification
+types, a registration tenant index, and notification type indexes. Existing
 migrations and rows are untouched.
 
 ## 3. ER diagram
@@ -116,6 +126,8 @@ erDiagram
     College ||--o{ Category : "defines"
     College ||--o{ Event : "owns"
     College ||--o{ SavedEvent : "scopes"
+    College ||--o{ AttendanceCredential : "scopes"
+    College ||--o{ NotificationPreference : "scopes"
     College ||--o{ AuditLog : "scopes"
 
     User ||--o| StudentProfile : "has"
@@ -123,6 +135,8 @@ erDiagram
     User ||--o{ Club : "creates"
     User ||--o{ Event : "creates"
     User ||--o{ Notification : "receives"
+    User ||--o| NotificationPreference : "configures"
+    User ||--o{ EventFeedback : "moderates"
     User ||--o{ AuditLog : "acts"
     User ||--o{ EventDuplicate : "reviews"
     User ||--o{ Session : "has"
@@ -146,6 +160,7 @@ erDiagram
     Event ||--o{ EventInterest : "tagged"
     Event ||--o{ SavedEvent : "shortlisted"
     Event ||--o{ EventRegistration : "receives"
+    EventRegistration ||--o| AttendanceCredential : "issues"
     Event ||--o{ EventPoster : "has"
     EventPoster ||--o{ PosterOcrField : "extracts"
     Event ||--o{ EventFeedback : "receives"
@@ -225,6 +240,16 @@ erDiagram
         timestamp cancelledAt
         timestamp checkedInAt
     }
+    AttendanceCredential {
+        uuid id PK
+        uuid collegeId FK
+        uuid eventId FK
+        uuid registrationId FK
+        varchar tokenHash UK
+        timestamp expiresAt
+        timestamp usedAt
+        timestamp revokedAt
+    }
     EventPoster {
         uuid id PK
         uuid collegeId FK
@@ -267,6 +292,11 @@ erDiagram
         uuid eventId FK
         uuid studentProfileId FK
         int rating
+        text comment
+        enum moderationStatus
+        uuid moderatedById FK
+        timestamp moderatedAt
+        varchar moderationReason
     }
     Notification {
         uuid id PK
@@ -274,6 +304,14 @@ erDiagram
         uuid userId FK
         enum type
         timestamp readAt
+    }
+    NotificationPreference {
+        uuid id PK
+        uuid collegeId FK
+        uuid userId FK
+        boolean registrationUpdates
+        boolean attendanceUpdates
+        boolean feedbackUpdates
     }
     EventDuplicate {
         uuid id PK
@@ -462,28 +500,35 @@ and asserts exactly one `CONFIRMED` row.
 
 Actions currently written by services:
 
-| Action                            | Trigger                                              |
-| --------------------------------- | ---------------------------------------------------- |
-| `EVENT_CREATED`                   | `createEventDraft`                                   |
-| `EVENT_UPDATED`                   | `updateEvent`, including accepted poster OCR fields  |
-| `EVENT_APPROVED`                  | `PENDING_APPROVAL → PUBLISHED`                       |
-| `EVENT_REJECTED`                  | `PENDING_APPROVAL → REJECTED`                        |
-| `EVENT_CANCELLED`                 | any allowed transition to `CANCELLED`                |
-| `EVENT_STATUS_CHANGED`            | other allowed lifecycle transitions                  |
-| `POSTER_UPLOADED`                 | first primary poster upload                          |
-| `POSTER_REPLACED`                 | replacement of an existing primary poster            |
-| `POSTER_REMOVED`                  | removal of an existing primary poster                |
-| `CLUB_APPROVED` / `CLUB_REJECTED` | `decideClub`                                         |
-| `CLUB_UPDATED`                    | `updateClubProfile`                                  |
-| `USER_ROLE_CHANGED`               | `changeUserRole`                                     |
-| `USER_STATUS_CHANGED`             | `changeUserStatus`                                   |
-| `USER_PROFILE_UPDATED`            | `updateStudentProfile`                               |
-| `COLLEGE_UPDATED`                 | college settings/lifecycle changes                   |
-| `SAVED_EVENT_CHANGED`             | save/unsave event                                    |
-| `NOTIFICATION_READ`               | mark one/all notifications read                      |
-| `REGISTRATION_STATUS_CHANGED`     | registration, reactivation, cancellation, attendance |
-| `DUPLICATE_CONFIRMED`             | advisory duplicate review confirmed                  |
-| `DUPLICATE_DISMISSED`             | advisory duplicate review dismissed                  |
+| Action                             | Trigger                                              |
+| ---------------------------------- | ---------------------------------------------------- |
+| `EVENT_CREATED`                    | `createEventDraft`                                   |
+| `EVENT_UPDATED`                    | `updateEvent`, including accepted poster OCR fields  |
+| `EVENT_APPROVED`                   | `PENDING_APPROVAL → PUBLISHED`                       |
+| `EVENT_REJECTED`                   | `PENDING_APPROVAL → REJECTED`                        |
+| `EVENT_CANCELLED`                  | any allowed transition to `CANCELLED`                |
+| `EVENT_STATUS_CHANGED`             | other allowed lifecycle transitions                  |
+| `POSTER_UPLOADED`                  | first primary poster upload                          |
+| `POSTER_REPLACED`                  | replacement of an existing primary poster            |
+| `POSTER_REMOVED`                   | removal of an existing primary poster                |
+| `CLUB_APPROVED` / `CLUB_REJECTED`  | `decideClub`                                         |
+| `CLUB_UPDATED`                     | `updateClubProfile`                                  |
+| `USER_ROLE_CHANGED`                | `changeUserRole`                                     |
+| `USER_STATUS_CHANGED`              | `changeUserStatus`                                   |
+| `USER_PROFILE_UPDATED`             | `updateStudentProfile`                               |
+| `COLLEGE_UPDATED`                  | college settings/lifecycle changes                   |
+| `SAVED_EVENT_CHANGED`              | save/unsave event                                    |
+| `NOTIFICATION_READ`                | mark one/all notifications read                      |
+| `REGISTRATION_STATUS_CHANGED`      | registration, reactivation, cancellation, attendance |
+| `ATTENDANCE_RECORDED`              | manual attendance/no-show recording                  |
+| `ATTENDANCE_CORRECTED`             | reasoned attendance correction                       |
+| `ATTENDANCE_CREDENTIAL_ISSUED`     | QR credential issuance or rotation                   |
+| `FEEDBACK_SUBMITTED`               | student submits feedback                             |
+| `FEEDBACK_UPDATED`                 | student edits feedback                               |
+| `FEEDBACK_MODERATED`               | hide/restore feedback with a reason                  |
+| `NOTIFICATION_PREFERENCES_UPDATED` | optional in-app notification settings changed        |
+| `DUPLICATE_CONFIRMED`              | advisory duplicate review confirmed                  |
+| `DUPLICATE_DISMISSED`              | advisory duplicate review dismissed                  |
 
 Audit rows record `actorUserId`, action, `entityType`, `entityId`, optional
 `collegeId`, redacted metadata, and `createdAt`. No service exposes update or
@@ -526,8 +571,9 @@ In a hosted environment, `DATABASE_URL` should be the pooled connection and
   are the current tenant boundary; they do not authorize API requests by
   themselves.
 - Auth and dashboard mutations have CSRF/origin checks; auth mutations also use
-  PostgreSQL rate limiting. Public business APIs and file-upload validation
-  remain unimplemented.
+  PostgreSQL rate limiting. Authenticated download routes re-check session,
+  role, and tenant scope. Public business APIs remain unimplemented; poster
+  uploads are content-validated and stored outside PostgreSQL.
 - SMTP is not configured; production password recovery is not operational here.
 - Audit immutability is application-level only.
 - The seed uses local-only Docker credentials and fictional data. It is not a

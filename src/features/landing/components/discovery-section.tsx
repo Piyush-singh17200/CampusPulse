@@ -18,15 +18,15 @@ export function DiscoverySection() {
                 <span className="italic text-forest"> not an endless scroll.</span>
               </>
             }
-            description="CampusPulse is designed to show students what matters now: the event, the people behind it, and the context needed to decide. This is an illustrative preview, not live campus data."
+            description="CampusPulse shows students what matters now: the event, the people behind it, and the context needed to decide. Try the interactive sample below, then sign in for the live campus feed."
           />
           <div className="shrink-0 border-l border-line-strong pl-5 lg:mb-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-forest">
               Preview note
             </p>
             <p className="mt-2 max-w-[15rem] text-xs leading-5 text-muted">
-              The event feed, filters, and detail dialog are interactive. Accounts and live
-              registrations are intentionally not connected yet.
+              The feed, filters, and detail dialog are interactive. Live registrations, saved
+              events, and notifications are part of the authenticated student workspace.
             </p>
           </div>
         </div>
