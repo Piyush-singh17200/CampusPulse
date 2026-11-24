@@ -8,10 +8,11 @@ import type { ChangeEvent } from "react";
 import { PosterImage, type PosterView } from "@/components/dashboard/poster-image";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { POSTER_MAX_BYTES } from "@/lib/poster";
 import { cn } from "@/lib/cn";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = POSTER_MAX_BYTES;
 
 export function PosterField({
   currentPoster,
@@ -57,7 +58,7 @@ export function PosterField({
     }
 
     if (file.size > MAX_BYTES) {
-      setClientError("Posters must be 5 MB or smaller.");
+      setClientError("Posters must be 4.2 MB or smaller.");
       setPreviewUrl(null);
       setFileName(null);
       event.target.value = "";
@@ -147,7 +148,7 @@ export function PosterField({
         <Field
           id={`${inputId}-file`}
           label={hasCurrentPoster ? "Replace poster" : "Upload poster"}
-          description="JPEG, PNG, or WebP. Maximum 5 MB. SVG and other formats are rejected."
+          description="JPEG, PNG, or WebP. Maximum 4.2 MB. SVG and other formats are rejected."
           error={clientError ?? undefined}
         >
           <Input

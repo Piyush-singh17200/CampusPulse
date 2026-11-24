@@ -282,7 +282,7 @@ Before publishing or changing a poster, verify:
 
 - Confirm title, summary, description, dates, registration window, venue,
   capacity, categories, and interests.
-- Upload a JPEG, PNG, or WebP no larger than 5 MB.
+- Upload a JPEG, PNG, or WebP no larger than 4.2 MB.
 - Set meaningful alt text.
 - Confirm the preview and current-poster display.
 - Optionally run OCR, review every suggestion, edit accepted values, and save

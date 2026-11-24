@@ -29,7 +29,7 @@ The Production Hardening review focused on abuse that does not require a code ex
 | Credential stuffing                      | Repeated login attempts against one email or many emails from one IP                  | Existing DB-backed login limits retained; verified                                |
 | Authenticated abuse                      | A valid club account repeatedly uploading, OCR-ing, exporting, or scanning attendance | New per-user DB-backed policies at action/route boundaries                        |
 | Export data exfiltration without a trail | Downloading attendance CSVs repeatedly                                                | Per-user export limit plus `EXPORT_DOWNLOADED` audit row                          |
-| OCR resource exhaustion                  | Submitting many posters to a CPU-heavy Tesseract worker                               | Per-user OCR limit, 60 s worker timeout, 60 s failure cooldown, deadline backstop |
+| OCR resource exhaustion                  | Submitting many posters to a CPU-heavy Tesseract worker                               | Per-user OCR limit, 12 s worker timeout, 60 s failure cooldown, deadline backstop |
 | Storage-path abuse                       | Crafting keys or prefixes to escape the poster namespace                              | Shared key validation, traversal rejection, S3 prefix validation                  |
 | Information disclosure through probes    | Health endpoint revealing connection strings, versions, or stack traces               | Minimal public health payload; no secrets or error text                           |
 | Rate-limiter bypass                      | In-memory counters that reset on restart or differ per instance                       | PostgreSQL fixed-window counters shared by all instances                          |
@@ -122,11 +122,11 @@ limiter rows.
 
 Event Intelligence introduced Tesseract-based poster OCR. Production Hardening adds:
 
-- `OCR_DEFAULT_TIMEOUT_MS = 60_000` in `src/server/ocr/constants.ts`.
-- A Tesseract worker timeout that terminates the worker instead of leaving it
-  running.
+- `OCR_DEFAULT_TIMEOUT_MS = 12_000` in `src/server/ocr/constants.ts` (12 s execution bound).
+- A Tesseract worker timeout with proactive abort signal support that terminates
+  the worker instead of leaving it running.
 - A `runOcrWithDeadline` backstop that races the engine against a deadline
-  (65 s by default; tests can inject a shorter `ocrTimeoutMs`).
+  (14 s by default, safely below the 15 s serverless limit; tests can inject a shorter `ocrTimeoutMs`).
 - A per-poster failure cooldown of 60 s (`OCR_FAILURE_RETRY_COOLDOWN_MS`) to
   prevent tight retry loops after a timeout or engine failure.
 - A safe `OCR_TIMEOUT` domain code and user-facing message. Internal worker

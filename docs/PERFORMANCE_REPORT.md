@@ -199,8 +199,8 @@ WASM, and English language data, and is unsuitable for an unbounded request
 path. Production Hardening therefore treats OCR as a bounded best-effort operation:
 
 - Lazy engine import.
-- 60 s worker timeout with termination.
-- 65 s deadline backstop.
+- 12 s worker timeout with termination.
+- 14 s deadline backstop.
 - 60 s failure cooldown.
 - 10 requests per 10 minutes per user.
 

@@ -18,6 +18,8 @@ export type OcrEngineResult = {
 export type OcrEngineOptions = {
   /** Hard deadline for recognition. The worker is terminated when it expires. */
   timeoutMs?: number;
+  /** Proactive abort signal to cancel recognition and immediately terminate the worker. */
+  signal?: AbortSignal;
 };
 
 export type OcrEngine = (image: Buffer, options?: OcrEngineOptions) => Promise<OcrEngineResult>;
@@ -60,12 +62,21 @@ export const recognizePosterImage: OcrEngine = async (image, options = {}) => {
   let worker: Awaited<ReturnType<typeof createWorker>> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let finished = false;
+  let abortListener: (() => void) | undefined;
+
+  if (options.signal?.aborted) {
+    throw new DomainError(
+      "OCR_TIMEOUT",
+      "Poster analysis took too long. Try a smaller or clearer image.",
+      504,
+    );
+  }
 
   // The deadline starts before worker creation. Both worker download/startup
   // and recognition are covered, so a stuck initialization cannot leave a
   // request or a PROCESSING claim behind indefinitely.
   const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
+    const triggerTimeout = () => {
       reject(
         new DomainError(
           "OCR_TIMEOUT",
@@ -73,7 +84,14 @@ export const recognizePosterImage: OcrEngine = async (image, options = {}) => {
           504,
         ),
       );
-    }, timeoutMs);
+    };
+
+    timer = setTimeout(triggerTimeout, timeoutMs);
+
+    if (options.signal) {
+      abortListener = triggerTimeout;
+      options.signal.addEventListener("abort", abortListener, { once: true });
+    }
   });
 
   try {
@@ -85,7 +103,7 @@ export const recognizePosterImage: OcrEngine = async (image, options = {}) => {
       errorHandler: () => undefined,
     });
 
-    // If the deadline wins while createWorker is still starting, terminate the
+    // If the deadline or abort wins while createWorker is still starting, terminate the
     // late worker as soon as it appears instead of leaking it.
     workerPromise
       .then((created) => {
@@ -113,7 +131,11 @@ export const recognizePosterImage: OcrEngine = async (image, options = {}) => {
       clearTimeout(timer);
     }
 
-    // A timeout must terminate the worker rather than leave it consuming CPU.
+    if (abortListener && options.signal) {
+      options.signal.removeEventListener("abort", abortListener);
+    }
+
+    // A timeout or abort must terminate the worker rather than leave it consuming CPU.
     await worker?.terminate().catch(() => undefined);
   }
 };

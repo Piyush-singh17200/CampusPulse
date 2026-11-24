@@ -71,7 +71,7 @@ CampusPulse delivers an end-to-end, multi-college platform providing:
 
 3. **Club Event Lifecycle & Operations:**
    - Multi-stage event lifecycle: `DRAFT` → `PENDING_APPROVAL` → `PUBLISHED` / `REJECTED` → `COMPLETED` / `CANCELLED`.
-   - Poster management: upload, preview, replacement, and removal supporting JPEG, PNG, and WebP up to 5 MB.
+   - Poster management: upload, preview, replacement, and removal supporting JPEG, PNG, and WebP up to 4.2 MB.
    - Designed poster fallback ensuring aesthetic presentation when no poster is uploaded.
    - Local Tesseract.js OCR engine extracting event metadata with field-by-field human review.
    - Real-time attendance check-in via device camera QR scanner or manual token fallback with reasoned correction auditing.

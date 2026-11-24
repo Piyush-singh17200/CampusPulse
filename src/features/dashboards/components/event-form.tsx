@@ -231,7 +231,7 @@ export function EventForm({
         <div className="border-t border-line pt-5">
           <h2 className="text-[15px] font-bold tracking-[-0.02em] text-ink">Event poster</h2>
           <p className="mt-1 text-xs leading-5 text-muted">
-            Optional. Upload a JPEG, PNG, or WebP image up to 5 MB. You can replace or remove it
+            Optional. Upload a JPEG, PNG, or WebP image up to 4.2 MB. You can replace or remove it
             later from the event edit page.
           </p>
           <div className="mt-4">

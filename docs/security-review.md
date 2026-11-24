@@ -72,7 +72,7 @@ transactional in-app notifications. Addendum date: 2026-11-11.
   type or filename. PNG signature/chunks/CRC, JPEG markers, and WebP RIFF/VP8
   containers are parsed. Empty, malformed, unsupported, SVG, HTML, executable,
   oversized, zero-dimension, and over-pixel files are rejected. The limit is
-  5 MB; dimensions are capped at 12,000 px per side and 40,000,000 pixels total.
+  4.2 MB; dimensions are capped at 12,000 px per side and 40,000,000 pixels total.
 - **Storage safety.** Callers pass only a generated key matching
   `UUID.(jpg|png|webp)`. The local adapter rejects path traversal, writes a
   mode-`0600` temporary file, atomically renames it, refuses to overwrite an

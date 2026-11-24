@@ -14,7 +14,7 @@ Implemented:
 
 - Optional poster during event creation, with a client-side preview.
 - Upload, replacement, and removal from the club event edit page.
-- JPEG, PNG, and WebP only; 5 MB maximum; dimensions capped at 12,000 px per
+- JPEG, PNG, and WebP only; 4.2 MB maximum; dimensions capped at 12,000 px per
   side and 40,000,000 pixels total.
 - Server-generated storage keys and content-based validation. Browser MIME type
   and filename are not trusted.
@@ -110,7 +110,7 @@ token into the request. Do not reuse long-lived root credentials.
 written to storage.
 
 1. Reject empty files.
-2. Reject files larger than 5 MB.
+2. Reject files larger than 4.2 MB.
 3. Identify the format from its signature:
    - PNG: `89 50 4E 47 0D 0A 1A 0A`.
    - JPEG: `FF D8 FF`.

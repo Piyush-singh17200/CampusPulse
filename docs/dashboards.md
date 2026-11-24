@@ -209,7 +209,7 @@ Saved events are persisted in PostgreSQL rather than browser storage.
   owning-club presidents/officers.
 - Upload/replace/remove is allowed for `DRAFT`, `REJECTED`, and `PUBLISHED`
   events. It is locked for `PENDING_APPROVAL`, `CANCELLED`, and `COMPLETED`.
-- JPEG, PNG, and WebP are accepted up to 5 MB, with server-side content
+- JPEG, PNG, and WebP are accepted up to 4.2 MB, with server-side content
   validation and dimension limits. Browser MIME type and filename are not
   trusted.
 - Replacement generates a new asset URL and removes the previous file after

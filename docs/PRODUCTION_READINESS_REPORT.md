@@ -48,7 +48,7 @@ All automated verification gates pass unconditionally:
 
 - **Content Security Policy (CSP):** Implemented in `src/proxy.ts` using strict nonce-based `script-src`, `frame-ancestors 'none'`, `object-src 'none'`, and `nosniff`.
 - **Anti-CSRF & Origin Verification:** All Server Actions enforce strict origin and referer verification via `assertSameOrigin()`.
-- **Poster File Upload Hardening:** Uploads are checked for content-type signature (`image/jpeg`, `image/png`, `image/webp`), magic-byte inspection, strict 5 MB file size bounds, and dimensional validation.
+- **Poster File Upload Hardening:** Uploads are checked for content-type signature (`image/jpeg`, `image/png`, `image/webp`), magic-byte inspection, strict 4.2 MB file size bounds (leaving room for multipart/boundary overhead within serverless request limits), and dimensional validation.
 - **CSV Formula Injection Sanitization:** Every exported CSV cell starting with dangerous spreadsheet formula characters (`=`, `+`, `-`, `@`, `\t`, `\r`) is neutralized with single-quote escaping.
 - **Attendance Pass Integrity:** Dynamic attendance QR credentials use SHA-256 HMAC tokens bound to specific registrations, preventing replay attacks and token cloning.
 - **Defensive Error Boundaries:** Server components in `/register` and `/account` wrap database queries with graceful fallbacks, preventing 500 runtime crashes during connection pool warmups.
@@ -73,7 +73,7 @@ A production dependency audit (`npm audit --omit=dev`) identifies 3 high-severit
 
 | Component             | Bound / Limit                      | Enforcement Mechanism                       |
 | :-------------------- | :--------------------------------- | :------------------------------------------ |
-| **Poster File Size**  | 5 MB maximum                       | Enforced at file stream and Zod schema      |
+| **Poster File Size**  | 4.2 MB maximum                     | Enforced at file stream and Zod schema      |
 | **OCR Concurrency**   | Max 2 concurrent slots, 8 queued   | `src/server/ocr/concurrency.ts` mutex pool  |
 | **OCR Timeout**       | 20 seconds hard timeout            | Worker terminated automatically on deadline |
 | **OCR Cooldown**      | 60 seconds per user after failure  | In-memory cooldown cache                    |

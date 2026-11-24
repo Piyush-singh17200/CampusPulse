@@ -202,7 +202,7 @@ Browser → OCR action
         → auth + ownership + rate limit
         → per-process concurrency slot (2 active, 8 queued, 20 s wait)
         → lazy import Tesseract adapter
-        → worker with 60 s timeout
+        → worker with 12 s timeout and abort support
         → bounded field extraction
         → OCR status persisted
 ```

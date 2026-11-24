@@ -264,4 +264,124 @@ describe("poster OCR service", () => {
     const unchangedEvent = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
     expect(unchangedEvent.title).toBe(event.title);
   });
+
+  it("handles OCR timeout by aborting the operation and recording a safe failure", async () => {
+    const { event, actor, storage, poster } = await createOcrFixture();
+    let aborted = false;
+
+    const engine: OcrEngine = async (_image, options) => {
+      return new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => {
+          aborted = true;
+          reject(new Error("Worker aborted"));
+        });
+      });
+    };
+
+    const result = await processPosterOcr(
+      actor,
+      { posterId: poster.id },
+      {
+        engine,
+        storage,
+        ocrTimeoutMs: 25,
+      },
+    );
+
+    expect(result.status).toBe("FAILED");
+    expect(result.error).toBe("Poster analysis took too long. Try a smaller or clearer image.");
+    expect(aborted).toBe(true);
+
+    const storedPoster = await prisma.eventPoster.findUniqueOrThrow({
+      where: { id: poster.id },
+      include: { ocrFields: true },
+    });
+    expect(storedPoster.ocrStatus).toBe("FAILED");
+    expect(storedPoster.ocrError).toBe(
+      "Poster analysis took too long. Try a smaller or clearer image.",
+    );
+    expect(storedPoster.ocrFields).toHaveLength(0);
+
+    const unchangedEvent = await prisma.event.findUniqueOrThrow({ where: { id: event.id } });
+    expect(unchangedEvent.title).toBe(event.title);
+  });
+
+  it("aborts active OCR operation via AbortSignal without leaving background workers running", async () => {
+    const { actor, storage, poster } = await createOcrFixture();
+    const controller = new AbortController();
+    let abortedAtRun = false;
+
+    const engine: OcrEngine = async (_image, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal?.aborted) {
+          abortedAtRun = true;
+          reject(new Error("Already aborted"));
+          return;
+        }
+
+        options?.signal?.addEventListener("abort", () => {
+          abortedAtRun = true;
+          reject(new Error("Aborted via controller"));
+        });
+      });
+    };
+
+    const promise = processPosterOcr(
+      actor,
+      { posterId: poster.id },
+      {
+        engine,
+        storage,
+        abortSignal: controller.signal,
+      },
+    );
+
+    // Proactively abort while engine is waiting
+    controller.abort();
+    const result = await promise;
+
+    expect(result.status).toBe("FAILED");
+    expect(abortedAtRun).toBe(true);
+
+    const storedPoster = await prisma.eventPoster.findUniqueOrThrow({
+      where: { id: poster.id },
+    });
+    expect(storedPoster.ocrStatus).toBe("FAILED");
+  });
+
+  it("preserves retry behavior and enforces cooldown after timeout failure", async () => {
+    const { actor, storage, poster } = await createOcrFixture();
+
+    const failed = await processPosterOcr(
+      actor,
+      { posterId: poster.id },
+      {
+        engine: () => new Promise(() => undefined),
+        storage,
+        ocrTimeoutMs: 25,
+      },
+    );
+
+    expect(failed.status).toBe("FAILED");
+
+    // Immediate retry within cooldown must throw RATE_LIMITED
+    await expect(
+      processPosterOcr(actor, { posterId: poster.id }, { engine: fakeEngine(), storage }),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+
+    // Advance completion time past cooldown
+    await prisma.eventPoster.update({
+      where: { id: poster.id },
+      data: { ocrCompletedAt: new Date(Date.now() - 61_000) },
+    });
+
+    const retried = await processPosterOcr(
+      actor,
+      { posterId: poster.id },
+      { engine: fakeEngine(), storage },
+    );
+
+    expect(retried.status).toBe("COMPLETED");
+    expect(retried.fields.length).toBeGreaterThan(0);
+  });
 });

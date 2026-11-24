@@ -97,9 +97,10 @@ export const OCR_FAILURE_RETRY_COOLDOWN_MS = 60_000;
 
 /**
  * The engine applies its own deadline. This backstop covers injected engines
- * and any future adapter that ignores the option.
+ * and any future adapter that ignores the option, calibrated below the 15s
+ * serverless execution ceiling.
  */
-const OCR_BACKSTOP_TIMEOUT_MS = OCR_DEFAULT_TIMEOUT_MS + 5_000;
+const OCR_BACKSTOP_TIMEOUT_MS = OCR_DEFAULT_TIMEOUT_MS + 2_000;
 
 /**
  * A claim older than this cannot still be running under the normal worker
@@ -255,9 +256,18 @@ async function runOcrWithDeadline(
   engine: OcrEngine,
   bytes: Buffer,
   timeoutMs = OCR_BACKSTOP_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<{ text: string; words: OcrWord[]; confidence: number | null }> {
   const engineTimeoutMs = Math.min(OCR_DEFAULT_TIMEOUT_MS, timeoutMs);
-  const work = engine(bytes, { timeoutMs: engineTimeoutMs });
+  const controller = new AbortController();
+
+  if (signal?.aborted) {
+    controller.abort();
+  } else if (signal) {
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  const work = engine(bytes, { timeoutMs: engineTimeoutMs, signal: controller.signal });
   // If the backstop wins, the engine may still reject later. Attach a handler
   // so that late failure is not reported as an unhandled rejection.
   work.catch(() => undefined);
@@ -265,6 +275,7 @@ async function runOcrWithDeadline(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
+      controller.abort();
       reject(
         new DomainError(
           "OCR_TIMEOUT",
@@ -386,7 +397,12 @@ export async function getPosterOcrReviewForEvent(
 export async function processPosterOcr(
   actor: AuthenticatedActor,
   input: unknown,
-  dependencies: { engine?: OcrEngine; storage?: PosterStorage; ocrTimeoutMs?: number } = {},
+  dependencies: {
+    engine?: OcrEngine;
+    storage?: PosterStorage;
+    ocrTimeoutMs?: number;
+    abortSignal?: AbortSignal;
+  } = {},
 ): Promise<{
   status: PosterOcrStatus;
   error: string | null;
@@ -513,7 +529,12 @@ export async function processPosterOcr(
     // and server route that imports the dashboard actions.
     const engine =
       dependencies.engine ?? (await import("@/server/ocr/tesseract-engine")).recognizePosterImage;
-    const recognized = await runOcrWithDeadline(engine, bytes, dependencies.ocrTimeoutMs);
+    const recognized = await runOcrWithDeadline(
+      engine,
+      bytes,
+      dependencies.ocrTimeoutMs,
+      dependencies.abortSignal,
+    );
 
     if (recognized.text.replace(/\s/g, "").length < 3) {
       throw new InvalidInputError("No readable text was found in this poster.");

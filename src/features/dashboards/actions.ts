@@ -254,7 +254,7 @@ async function readPosterFile(
   }
 
   if (value.size > POSTER_MAX_BYTES) {
-    throw new InvalidInputError("Posters must be 5 MB or smaller.");
+    throw new InvalidInputError("Posters must be 4.2 MB or smaller.");
   }
 
   return {

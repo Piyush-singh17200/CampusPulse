@@ -70,7 +70,7 @@ Implemented and verified in this phase:
 - Persistent student saved events with composite tenant foreign keys,
   idempotent save/unsave behavior, and audit entries.
 - JPEG/PNG/WebP poster upload, replacement, and removal with content-based
-  validation, 5 MB and dimension limits, server-generated keys, accessible
+  validation, 4.2 MB and dimension limits, server-generated keys, accessible
   previews, safe broken-image handling, and a local server-only storage adapter.
 - Authenticated, tenant-aware poster delivery with `private, no-store`,
   `nosniff`, and same-origin response headers. Unpublished posters are limited to

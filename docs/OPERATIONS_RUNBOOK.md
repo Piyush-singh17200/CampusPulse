@@ -179,7 +179,7 @@ Steps:
 3. Confirm the in-process concurrency guard is healthy: at most two OCR jobs run
    at once, up to eight wait, and a request waits at most 20 seconds before a
    safe `429` response.
-4. Confirm the 60 s worker timeout, 65 s deadline, and 60 s failure cooldown are
+4. Confirm the 12 s worker timeout, 14 s deadline, and 60 s failure cooldown are
    in the deployed build.
 5. Reduce concurrent OCR load by asking users to retry later; the cooldown
    prevents immediate retries.

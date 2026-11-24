@@ -309,7 +309,7 @@ on downloads.
 - **Input validation:** Zod schemas at service boundaries; UUID validation;
   bounded string lengths; no raw SQL interpolation (parameterized Prisma
   queries and tagged templates only).
-- **Uploads:** content-signature validation for PNG/JPEG/WebP, 5 MB limit,
+- **Uploads:** content-signature validation for PNG/JPEG/WebP, 4.2 MB limit,
   40 MP limit, path-traversal-safe storage keys, no overwrite, authenticated
   delivery with `nosniff`.
 - **Audit:** actor, action, entity, tenant, and redacted metadata; sensitive

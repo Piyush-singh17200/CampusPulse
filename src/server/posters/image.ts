@@ -1,8 +1,9 @@
 import "server-only";
 
+import { POSTER_MAX_BYTES } from "@/lib/poster";
 import { InvalidInputError } from "@/server/errors";
 
-export const POSTER_MAX_BYTES = 5 * 1024 * 1024;
+export { POSTER_MAX_BYTES };
 export const POSTER_MAX_DIMENSION = 12_000;
 export const POSTER_MAX_PIXELS = 40_000_000;
 
@@ -299,7 +300,7 @@ export function validatePosterImage(input: Uint8Array): ValidatedPosterImage {
   }
 
   if (input.byteLength > POSTER_MAX_BYTES) {
-    invalid("Posters must be 5 MB or smaller.");
+    invalid("Posters must be 4.2 MB or smaller.");
   }
 
   const buffer = Buffer.from(input.buffer, input.byteOffset, input.byteLength);

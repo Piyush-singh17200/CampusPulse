@@ -64,11 +64,23 @@ describe("poster content validation", () => {
     expectInvalid(Buffer.alloc(0), /empty/);
   });
 
-  it("rejects a file larger than 5 MB before parsing", () => {
+  it("accepts a file at exactly the 4.2 MB boundary", () => {
+    const base = validJpeg();
+    const exactLimitJpeg = Buffer.alloc(POSTER_MAX_BYTES);
+    base.subarray(0, base.length - 2).copy(exactLimitJpeg, 0);
+    exactLimitJpeg[POSTER_MAX_BYTES - 2] = 0xff;
+    exactLimitJpeg[POSTER_MAX_BYTES - 1] = 0xd9;
+
+    const result = validatePosterImage(exactLimitJpeg);
+    expect(result.byteSize).toBe(POSTER_MAX_BYTES);
+    expect(result.mimeType).toBe("image/jpeg");
+  });
+
+  it("rejects a file larger than 4.2 MB before parsing", () => {
     const oversized = Buffer.alloc(POSTER_MAX_BYTES + 1);
     validPng().copy(oversized, 0);
 
-    expectInvalid(oversized, /5 MB/);
+    expectInvalid(oversized, /4\.2 MB/);
   });
 
   it("rejects a PNG with a broken chunk checksum", () => {

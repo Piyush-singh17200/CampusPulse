@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["tesseract.js", "@tesseract.js-data/eng"],
   experimental: {
     serverActions: {
-      // Poster uploads are capped at 5 MB by the poster service. Leave room
+      // Poster uploads are capped at 4.2 MB by the poster service. Leave room
       // for multipart boundaries and form-field overhead.
       bodySizeLimit: "6mb",
     },

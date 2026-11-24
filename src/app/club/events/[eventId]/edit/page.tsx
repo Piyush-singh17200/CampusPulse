@@ -92,7 +92,7 @@ export default async function ClubEditEventPage({
       {canManagePoster ? (
         <SectionCard
           title="Event poster"
-          description="JPEG, PNG, or WebP up to 5 MB. Replacing a poster creates a new asset URL and cleans up the old file after the database update."
+          description="JPEG, PNG, or WebP up to 4.2 MB. Replacing a poster creates a new asset URL and cleans up the old file after the database update."
         >
           <PosterManager
             eventId={data.event.id}

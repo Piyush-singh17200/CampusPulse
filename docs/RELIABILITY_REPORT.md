@@ -90,11 +90,11 @@ bounds it in four layers:
 
 1. **Per-user budget.** `posterOcrUser` allows 10 OCR requests per 10 minutes
    per user.
-2. **Worker timeout.** The Tesseract worker is given 60 s. On timeout it is
+2. **Worker timeout.** The Tesseract worker is given 12 s. On timeout or abort it is
    terminated rather than left alive.
 3. **Deadline backstop.** `runOcrWithDeadline` races the engine against
-   `OCR_DEFAULT_TIMEOUT_MS + 5,000` (65 s by default). Tests can inject a
-   shorter `ocrTimeoutMs`.
+   `OCR_DEFAULT_TIMEOUT_MS + 2,000` (14 s by default, calibrated below Vercel's 15 s
+   serverless ceiling). Tests can inject a shorter `ocrTimeoutMs`.
 4. **Failure cooldown.** After an OCR failure or timeout, the same poster
    cannot be retried for 60 s. This prevents a client from immediately
    re-triggering an expensive failure.

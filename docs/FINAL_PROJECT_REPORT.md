@@ -191,7 +191,7 @@ This architecture makes cross-college data leaks impossible at the SQL engine le
 ### 6.2 Club Administrator Experience
 
 - **Operations Dashboard:** Dedicated focus cards highlighting pending approvals, active drafts, and next published events.
-- **Event Creation & Poster Upload:** Create event drafts and upload posters (JPEG, PNG, WebP up to 5 MB) validated against magic-byte content signatures.
+- **Event Creation & Poster Upload:** Create event drafts and upload posters (JPEG, PNG, WebP up to 4.2 MB) validated against magic-byte content signatures.
 - **Local Tesseract OCR:** Automated extraction of event title, date, time, venue, and description with field-by-field human review before saving.
 - **Attendance Management:** Check in attendees via camera QR scanner or manual 6-character token fallback. Manual corrections require written justification and are permanently audited.
 - **Engagement Analytics:** View real-time attendance rates, registration trends, and average satisfaction ratings.
