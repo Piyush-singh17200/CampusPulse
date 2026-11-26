@@ -46,9 +46,19 @@ export default async function CollegeEventPage({
         title={event.title}
         description={event.summary ?? "Full event record and approval controls."}
         actions={
-          <Link href="/college/events" className={buttonStyles({ variant: "outline" })}>
-            Back to events
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {published || event.status === "COMPLETED" ? (
+              <Link
+                href={`/college/events/${event.id}/attendance`}
+                className={buttonStyles({ variant: "signal" })}
+              >
+                Attendance & QR scanner
+              </Link>
+            ) : null}
+            <Link href="/college/events" className={buttonStyles({ variant: "outline" })}>
+              Back to events
+            </Link>
+          </div>
         }
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -233,6 +243,28 @@ export default async function CollegeEventPage({
               ) : null}
             </div>
           </SectionCard>
+
+          {published || event.status === "COMPLETED" ? (
+            <SectionCard
+              title="Attendance & Check-in"
+              description="Scan student QR codes or manage the attendance roster."
+            >
+              <p className="text-xs leading-5 text-muted">
+                Authorized college administrators can check in attendees via live camera QR scanner
+                or update attendance status.
+              </p>
+              <Link
+                href={`/college/events/${event.id}/attendance`}
+                className={buttonStyles({
+                  variant: "signal",
+                  size: "sm",
+                  className: "mt-4 w-full justify-center",
+                })}
+              >
+                Open QR scanner & attendance
+              </Link>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             title="Organizer"

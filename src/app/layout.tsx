@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Instrument_Serif, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
@@ -55,13 +56,21 @@ export const viewport: Viewport = {
   themeColor: "#f3f0e7",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+const themeInitScript = `(function(){try{var t=localStorage.getItem("campuspulse-theme");var d=t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(d){document.documentElement.setAttribute("data-theme","dark");document.documentElement.classList.add("dark");}else{document.documentElement.setAttribute("data-theme","light");document.documentElement.classList.remove("dark");}}catch(e){}})();`;
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       data-scroll-behavior="smooth"
       className={`${manrope.variable} ${instrumentSerif.variable}`}
     >
+      <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-screen bg-canvas font-sans text-ink antialiased">{children}</body>
     </html>
   );

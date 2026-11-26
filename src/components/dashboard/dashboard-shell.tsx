@@ -250,15 +250,25 @@ export function DashboardShell({
       </nav>
 
       <div className="border-t border-line p-4">
-        <div className="flex items-center gap-3">
+        <Link
+          href="/account"
+          title="Account settings & security"
+          className="group flex items-center gap-3 rounded-lg p-1.5 -m-1.5 transition-colors hover:bg-paper-dim/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+        >
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sage text-[11px] font-bold text-ink">
             {initials(userName)}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-ink">{userName}</p>
+            <p className="truncate text-[13px] font-semibold text-ink group-hover:text-forest transition-colors">
+              {userName}
+            </p>
             <p className="truncate text-[11px] text-muted">{userEmail}</p>
           </div>
-        </div>
+          <Settings
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted transition-colors group-hover:text-forest"
+          />
+        </Link>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
             href="/"

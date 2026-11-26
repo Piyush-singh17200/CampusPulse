@@ -25,6 +25,7 @@ import {
   type DuplicateReview,
 } from "@/services/duplicate-events";
 import { uuidSchema } from "@/services/validation";
+import { assertActorActive, isSuperAdmin } from "@/services/authorization";
 
 import {
   eventDetailSelect,
@@ -1200,6 +1201,138 @@ export async function getClubAttendance(
     ...workspace,
     events,
     selectedEvent,
+    registrations,
+    counts,
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
+}
+
+export async function getCollegeEventAttendance(
+  actor: AuthenticatedActor,
+  eventId: string,
+  filters: ClubAttendanceFilters = {},
+) {
+  assertActorActive(actor);
+
+  if (actor.role !== "COLLEGE_ADMIN" && actor.role !== "SUPER_ADMIN") {
+    throw new TenantIsolationError();
+  }
+
+  if (!uuidSchema.safeParse(eventId).success) {
+    throw new TenantIsolationError();
+  }
+
+  const isSuper = isSuperAdmin(actor);
+  const collegeId = isSuper ? undefined : actor.collegeId!;
+
+  const event = await prisma.event.findFirst({
+    where: {
+      id: eventId,
+      ...(collegeId ? { collegeId } : {}),
+      deletedAt: null,
+      status: { in: ["PUBLISHED", "COMPLETED"] },
+    },
+    select: {
+      id: true,
+      title: true,
+      summary: true,
+      startsAt: true,
+      endsAt: true,
+      venueName: true,
+      venueAddress: true,
+      isOnline: true,
+      status: true,
+      clubId: true,
+      collegeId: true,
+      club: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+    },
+  });
+
+  if (!event) {
+    return null;
+  }
+
+  const search = filters.search?.trim().slice(0, 100) ?? "";
+  const allowedStatuses = new Set(["CONFIRMED", "ATTENDED", "NO_SHOW"]);
+  const status =
+    filters.status && allowedStatuses.has(filters.status)
+      ? (filters.status as RegistrationStatus)
+      : null;
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 50, 1), 100);
+  const requestedPage = Math.max(filters.page ?? 1, 1);
+  const where: Prisma.EventRegistrationWhereInput = {
+    collegeId: event.collegeId,
+    eventId: event.id,
+    status: status ?? { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+    ...(search
+      ? {
+          studentProfile: {
+            OR: [
+              { user: { name: { contains: search, mode: "insensitive" } } },
+              { rollNumber: { contains: search, mode: "insensitive" } },
+              { department: { contains: search, mode: "insensitive" } },
+            ],
+          },
+        }
+      : {}),
+  };
+
+  const [registrationCounts, total] = await Promise.all([
+    prisma.eventRegistration.groupBy({
+      by: ["status"],
+      where: {
+        collegeId: event.collegeId,
+        eventId: event.id,
+        status: { in: ["CONFIRMED", "ATTENDED", "NO_SHOW"] },
+      },
+      _count: { _all: true },
+    }),
+    prisma.eventRegistration.count({ where }),
+  ]);
+
+  const counts = registrationCounts.reduce(
+    (accumulator, row) => {
+      if (row.status === "CONFIRMED") accumulator.confirmed = row._count._all;
+      if (row.status === "ATTENDED") accumulator.attended = row._count._all;
+      if (row.status === "NO_SHOW") accumulator.noShow = row._count._all;
+      return accumulator;
+    },
+    { confirmed: 0, attended: 0, noShow: 0 },
+  );
+
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const registrations = await prisma.eventRegistration.findMany({
+    where,
+    select: {
+      id: true,
+      status: true,
+      checkedInAt: true,
+      studentProfile: {
+        select: {
+          id: true,
+          rollNumber: true,
+          department: true,
+          user: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: [{ studentProfile: { user: { name: "asc" } } }, { id: "asc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
+
+  return {
+    event,
     registrations,
     counts,
     total,

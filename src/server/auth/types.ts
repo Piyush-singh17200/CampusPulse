@@ -24,6 +24,7 @@ export type AuthenticatedActor = {
   status: UserStatus;
   deletedAt: Date | null;
   clubMemberships: ActorMembership[];
+  emailVerified: boolean;
 };
 
 export type AuthenticatedUser = AuthenticatedActor & {

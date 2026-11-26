@@ -2,8 +2,17 @@ import { ArrowUpRight, Check } from "lucide-react";
 
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import type { UserRole } from "@/generated/prisma/enums";
+import { ROLE_LABELS, dashboardPathForRole } from "@/lib/roles";
 
-export function CtaSection() {
+export type CtaSectionProps = {
+  user?: {
+    name: string;
+    role: UserRole;
+  } | null;
+};
+
+export function CtaSection({ user }: CtaSectionProps = {}) {
   return (
     <section className="border-b border-ink/10 bg-signal py-16 text-ink sm:py-20 lg:py-24">
       <Container>
@@ -28,24 +37,49 @@ export function CtaSection() {
               Start here
             </p>
             <div className="mt-4 flex flex-col gap-2.5">
-              <ButtonLink
-                href="/register"
-                variant="primary"
-                size="lg"
-                className="justify-between bg-ink text-paper hover:bg-ink-soft"
-              >
-                Create a student account
-                <ArrowUpRight aria-hidden="true" className="size-4" />
-              </ButtonLink>
-              <ButtonLink
-                href="/login"
-                variant="outline"
-                size="lg"
-                className="justify-between border-ink/30 text-ink hover:border-ink hover:bg-ink/10"
-              >
-                Sign in to a workspace
-                <ArrowUpRight aria-hidden="true" className="size-4" />
-              </ButtonLink>
+              {user ? (
+                <>
+                  <ButtonLink
+                    href={dashboardPathForRole(user.role)}
+                    variant="primary"
+                    size="lg"
+                    className="justify-between bg-ink text-paper hover:bg-ink-soft"
+                  >
+                    Open your {ROLE_LABELS[user.role]} workspace
+                    <ArrowUpRight aria-hidden="true" className="size-4" />
+                  </ButtonLink>
+                  <ButtonLink
+                    href="/account"
+                    variant="outline"
+                    size="lg"
+                    className="justify-between border-ink/30 text-ink hover:border-ink hover:bg-ink/10"
+                  >
+                    Manage your account
+                    <ArrowUpRight aria-hidden="true" className="size-4" />
+                  </ButtonLink>
+                </>
+              ) : (
+                <>
+                  <ButtonLink
+                    href="/register"
+                    variant="primary"
+                    size="lg"
+                    className="justify-between bg-ink text-paper hover:bg-ink-soft"
+                  >
+                    Create a student account
+                    <ArrowUpRight aria-hidden="true" className="size-4" />
+                  </ButtonLink>
+                  <ButtonLink
+                    href="/login"
+                    variant="outline"
+                    size="lg"
+                    className="justify-between border-ink/30 text-ink hover:border-ink hover:bg-ink/10"
+                  >
+                    Sign in to a workspace
+                    <ArrowUpRight aria-hidden="true" className="size-4" />
+                  </ButtonLink>
+                </>
+              )}
             </div>
             <ul className="mt-5 space-y-2 text-[11px] font-medium text-ink/65">
               {[

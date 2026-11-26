@@ -1,13 +1,23 @@
 import { ArrowDown, ArrowUpRight, Check } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import type { UserRole } from "@/generated/prisma/enums";
+import { ROLE_LABELS, dashboardPathForRole } from "@/lib/roles";
 import { ProductPreview } from "@/features/landing/components/product-preview";
 
 const assurances = ["College-scoped access", "Moderated publishing", "Four connected roles"];
 
-export function HeroSection() {
+export type HeroSectionProps = {
+  user?: {
+    name: string;
+    role: UserRole;
+  } | null;
+};
+
+export function HeroSection({ user }: HeroSectionProps = {}) {
   return (
     <section id="top" className="relative overflow-hidden border-b border-line bg-canvas">
       <div className="section-grid pointer-events-none absolute inset-0 opacity-60" />
@@ -42,10 +52,17 @@ export function HeroSection() {
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/register" size="lg">
-              Find your next event
-              <ArrowUpRight aria-hidden="true" className="size-4" />
-            </ButtonLink>
+            {user ? (
+              <ButtonLink href={dashboardPathForRole(user.role)} size="lg">
+                Go to your workspace
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </ButtonLink>
+            ) : (
+              <ButtonLink href="/register" size="lg">
+                Find your next event
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </ButtonLink>
+            )}
             <ButtonLink href="#platform" variant="outline" size="lg">
               See the platform
               <ArrowDown aria-hidden="true" className="size-4" />
@@ -64,16 +81,36 @@ export function HeroSection() {
             ))}
           </ul>
 
-          <p className="mt-6 border-t border-line pt-4 text-[11px] leading-5 text-muted">
-            Already have a campus account?{" "}
-            <a
-              href="/login"
-              className="font-bold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-forest"
-            >
-              Sign in to your workspace
-            </a>
-            .
-          </p>
+          {user ? (
+            <p className="mt-6 border-t border-line pt-4 text-[11px] leading-5 text-muted">
+              Signed in as <span className="font-bold text-ink">{user.name}</span> (
+              {ROLE_LABELS[user.role]}).{" "}
+              <Link
+                href="/account"
+                className="font-bold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-forest"
+              >
+                View account
+              </Link>{" "}
+              or{" "}
+              <Link
+                href={dashboardPathForRole(user.role)}
+                className="font-bold text-forest underline decoration-forest underline-offset-4 transition-colors hover:text-signal-dark"
+              >
+                Open workspace →
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-6 border-t border-line pt-4 text-[11px] leading-5 text-muted">
+              Already have a campus account?{" "}
+              <a
+                href="/login"
+                className="font-bold text-ink underline decoration-line-strong underline-offset-4 transition-colors hover:text-forest"
+              >
+                Sign in to your workspace
+              </a>
+              .
+            </p>
+          )}
         </div>
 
         <div className="min-w-0 animate-rise [animation-delay:120ms]">

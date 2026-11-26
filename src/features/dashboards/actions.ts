@@ -15,7 +15,7 @@ import {
   scanAttendance,
 } from "@/services/attendance";
 import { moderateFeedback, submitFeedback, updateFeedback } from "@/services/feedback";
-import { changeCollegeStatus, updateCollegeSettings } from "@/services/colleges";
+import { changeCollegeStatus, createCollege, updateCollegeSettings } from "@/services/colleges";
 import { decideClub, updateClubProfile } from "@/services/clubs";
 import { reviewDuplicate } from "@/services/duplicate-events";
 import { createEventDraft, transitionEvent, updateEvent } from "@/services/events";
@@ -789,6 +789,27 @@ export async function changeCollegeStatusAction(
     revalidatePath("/platform/colleges");
     revalidatePath(`/platform/colleges/${field(formData, "collegeId")}`);
     return success("College status updated.");
+  } catch (error) {
+    return errorState(error);
+  }
+}
+
+export async function createCollegeAction(
+  _previous: DashboardActionState,
+  formData: FormData,
+): Promise<DashboardActionState> {
+  try {
+    const user = await limitedActor(RATE_LIMITS.adminWriteUser);
+    const college = await createCollege(user, {
+      name: field(formData, "name"),
+      slug: field(formData, "slug"),
+      shortName: nullableField(formData, "shortName"),
+      primaryDomain: nullableField(formData, "primaryDomain"),
+      timezone: field(formData, "timezone") || "Asia/Kolkata",
+    });
+    revalidatePath("/platform");
+    revalidatePath("/platform/colleges");
+    return success(`College "${college.name}" created successfully.`);
   } catch (error) {
     return errorState(error);
   }

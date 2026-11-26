@@ -1,11 +1,22 @@
 import { connection } from "next/server";
 
 import { LandingPage } from "@/features/landing/components/landing-page";
+import { getCurrentUser } from "@/server/auth/session";
 
 export default async function Home() {
-  // The nonce-based CSP requires dynamic rendering so a fresh nonce can be
-  // generated for each request.
   await connection();
+  const user = await getCurrentUser();
 
-  return <LandingPage />;
+  return (
+    <LandingPage
+      user={
+        user
+          ? {
+              name: user.name,
+              role: user.role,
+            }
+          : null
+      }
+    />
+  );
 }

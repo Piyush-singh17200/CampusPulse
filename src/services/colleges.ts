@@ -21,6 +21,30 @@ const updateCollegeSettingsSchema = z.object({
   timezone: z.string().trim().min(1).max(64),
 });
 
+const createCollegeSchema = z.object({
+  name: z.string().trim().min(2, "Name must be at least 2 characters.").max(160),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(2, "Slug must be at least 2 characters.")
+    .max(80)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens."),
+  shortName: z.string().trim().max(48).nullable().optional(),
+  primaryDomain: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(255)
+    .regex(
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/,
+      "Enter a bare domain such as college.example.edu.",
+    )
+    .nullable()
+    .optional(),
+  timezone: z.string().trim().min(1).max(64).default("Asia/Kolkata"),
+});
+
 const changeCollegeStatusSchema = z.object({
   collegeId: uuidSchema,
   status: z.enum(["ACTIVE", "SUSPENDED", "ARCHIVED"]),
@@ -151,5 +175,57 @@ export async function changeCollegeStatus(actor: AuthenticatedActor, input: unkn
     }
 
     return updated;
+  });
+}
+
+export async function createCollege(actor: AuthenticatedActor, input: unknown) {
+  assertSuperAdmin(actor);
+  const data = parseServiceInput(createCollegeSchema, input);
+  assertTimezone(data.timezone);
+
+  return runInTransaction(prisma, async (tx) => {
+    const existing = await tx.college.findFirst({
+      where: {
+        OR: [
+          { slug: data.slug },
+          ...(data.primaryDomain ? [{ primaryDomain: data.primaryDomain }] : []),
+        ],
+      },
+      select: { id: true, name: true, slug: true, primaryDomain: true },
+    });
+
+    if (existing) {
+      throw new DomainError("CONFLICT", "A college already uses that slug or domain.", 409);
+    }
+
+    const shortName = data.shortName?.trim() ? data.shortName.trim() : null;
+    const primaryDomain = data.primaryDomain?.trim() ? data.primaryDomain.trim() : null;
+
+    const college = await tx.college.create({
+      data: {
+        name: data.name,
+        slug: data.slug,
+        shortName,
+        primaryDomain,
+        timezone: data.timezone,
+        status: "ACTIVE",
+      },
+      select: { id: true, name: true, slug: true, shortName: true, status: true },
+    });
+
+    await writeAuditLog(tx, {
+      collegeId: college.id,
+      actorUserId: actor.id,
+      action: "COLLEGE_CREATED",
+      entityType: "College",
+      entityId: college.id,
+      metadata: {
+        name: college.name,
+        slug: college.slug,
+        primaryDomain,
+      },
+    });
+
+    return college;
   });
 }

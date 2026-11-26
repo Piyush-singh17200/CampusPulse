@@ -16,23 +16,38 @@ export async function loadActorContext(userId: string): Promise<AuthenticatedAct
     return null;
   }
 
-  const actor = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      collegeId: true,
-      role: true,
-      status: true,
-      deletedAt: true,
-      college: {
-        select: { status: true, deletedAt: true },
+  const queryActor = () =>
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        emailVerified: true,
+        collegeId: true,
+        role: true,
+        status: true,
+        deletedAt: true,
+        college: {
+          select: { status: true, deletedAt: true },
+        },
+        clubMemberships: {
+          where: { status: "ACTIVE" },
+          select: { clubId: true, role: true, status: true },
+        },
       },
-      clubMemberships: {
-        where: { status: "ACTIVE" },
-        select: { clubId: true, role: true, status: true },
-      },
-    },
-  });
+    });
+
+  let actor: Awaited<ReturnType<typeof queryActor>>;
+
+  try {
+    actor = await queryActor();
+  } catch {
+    // Retry once in case Neon connection pooler re-established a dead socket
+    try {
+      actor = await queryActor();
+    } catch {
+      return null;
+    }
+  }
 
   if (!actor || actor.deletedAt || actor.status !== "ACTIVE") {
     return null;

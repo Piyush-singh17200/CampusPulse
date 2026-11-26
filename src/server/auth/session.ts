@@ -28,15 +28,38 @@ export const getCurrentUser = cache(async (): Promise<AuthenticatedUser | null> 
   // also makes the dependency explicit if the auth implementation changes.
   await connection();
 
+  const requestHeaders = await headers();
+  const cookieHeader = requestHeaders.get("cookie") ?? "";
+
+  // Performance optimization: If no session cookies exist in the incoming request,
+  // the visitor is anonymous. We return null immediately without making a slow
+  // network round-trip to the remote PostgreSQL database.
+  if (
+    !cookieHeader.includes("better-auth.session_token") &&
+    !cookieHeader.includes("__Secure-better-auth.session_token") &&
+    !cookieHeader.includes("better-auth")
+  ) {
+    return null;
+  }
+
   let session: Awaited<ReturnType<typeof auth.api.getSession>>;
 
   try {
     session = await auth.api.getSession({
-      headers: await headers(),
+      headers: requestHeaders,
       query: { disableCookieCache: true },
     });
   } catch {
-    return null;
+    // Neon PostgreSQL can drop idle connections or pause compute nodes.
+    // Retrying once with a fresh connection prevents unexpected session dropouts.
+    try {
+      session = await auth.api.getSession({
+        headers: requestHeaders,
+        query: { disableCookieCache: true },
+      });
+    } catch {
+      return null;
+    }
   }
 
   if (!session?.user?.id || !session.session?.id) {

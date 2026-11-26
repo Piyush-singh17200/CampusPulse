@@ -5,6 +5,7 @@ import { DashboardPageHeader, SectionCard } from "@/components/dashboard/primiti
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/states";
+import { CreateCollegeModal } from "@/features/dashboards/components/create-college-modal";
 import { formatDateTime } from "@/lib/format";
 import { requireDashboardRole } from "@/server/auth/page-guard";
 import { getPlatformColleges } from "@/server/dashboards/queries";
@@ -53,6 +54,7 @@ export default async function PlatformCollegesPage({
         eyebrow="Tenants"
         title="Colleges on CampusPulse."
         description="Inspect tenant records and change lifecycle status. Suspending or archiving a college revokes its users' sessions."
+        actions={<CreateCollegeModal />}
       />
 
       <form

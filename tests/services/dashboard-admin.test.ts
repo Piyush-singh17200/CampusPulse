@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { loadActorContext } from "@/server/auth/actor";
 import { prisma } from "@/server/db/client";
 import { ActorNotAuthorizedError, InvalidInputError } from "@/server/errors";
-import { changeCollegeStatus, updateCollegeSettings } from "@/services/colleges";
+import {
+  changeCollegeStatus,
+  createCollege as createCollegeService,
+  updateCollegeSettings,
+} from "@/services/colleges";
 import { updateClubProfile } from "@/services/clubs";
 import { changeUserStatus } from "@/services/user-status";
 import { resetDatabase } from "@tests/helpers/db";
@@ -437,5 +441,62 @@ describe("user status service", () => {
     await expect(
       changeUserStatus(actor, { targetUserId: deleted.user.id, status: "DELETED" }),
     ).rejects.toBeInstanceOf(InvalidInputError);
+  });
+});
+
+describe("createCollege service", () => {
+  it("allows SUPER_ADMIN to provision a new college tenant and writes an audit log", async () => {
+    const superAdmin = await createSuperAdmin();
+    const actor = await actorForUser(superAdmin.id);
+
+    const created = await createCollegeService(actor, {
+      name: "New University",
+      slug: "new-univ",
+      shortName: "NU",
+      primaryDomain: "newuniv.edu",
+      timezone: "Asia/Kolkata",
+    });
+
+    expect(created.slug).toBe("new-univ");
+    expect(created.status).toBe("ACTIVE");
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: "COLLEGE_CREATED", entityId: created.id },
+    });
+    expect(audit).not.toBeNull();
+  });
+
+  it("rejects non-SUPER_ADMIN actors from provisioning colleges", async () => {
+    const college = await createCollege();
+    const admin = await createCollegeAdmin(college.id);
+    const actor = await actorForUser(admin.id);
+
+    await expect(
+      createCollegeService(actor, {
+        name: "Unauthorized University",
+        slug: "unauth-univ",
+      }),
+    ).rejects.toBeInstanceOf(ActorNotAuthorizedError);
+  });
+
+  it("rejects duplicate slug or domain", async () => {
+    const superAdmin = await createSuperAdmin();
+    const actor = await actorForUser(superAdmin.id);
+    await createCollege({ slug: "existing-slug", primaryDomain: "existing.edu" });
+
+    await expect(
+      createCollegeService(actor, {
+        name: "Duplicate Slug College",
+        slug: "existing-slug",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await expect(
+      createCollegeService(actor, {
+        name: "Duplicate Domain College",
+        slug: "different-slug",
+        primaryDomain: "existing.edu",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 });

@@ -16,7 +16,7 @@ const booleanStringSchema = z
 const databaseConfigSchema = z.object({
   url: databaseUrlSchema,
   poolMax: z.coerce.number().int().min(1).max(50).default(10),
-  connectionTimeoutMs: z.coerce.number().int().min(250).max(60_000).default(5_000),
+  connectionTimeoutMs: z.coerce.number().int().min(250).max(60_000).default(20_000),
   idleTimeoutMs: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
   ssl: booleanStringSchema,
   logQueries: booleanStringSchema,

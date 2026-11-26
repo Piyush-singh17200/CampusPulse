@@ -9,8 +9,9 @@ import {
   assertPlatformDashboard,
   managedClubIds,
 } from "@/server/dashboards/access";
-import { TenantIsolationError } from "@/server/errors";
+import { ActorNotAuthorizedError, TenantIsolationError } from "@/server/errors";
 import { uuidSchema } from "@/services/validation";
+import { assertActorActive, isSuperAdmin } from "@/services/authorization";
 
 export type AnalyticsFilters = {
   from?: string;
@@ -827,14 +828,32 @@ export async function getClubAttendanceExport(
   clubId: string,
   eventId: string,
 ) {
-  assertClubDashboard(actor);
-  const collegeId = actor.collegeId!;
+  assertActorActive(actor);
 
   if (!uuidSchema.safeParse(clubId).success || !uuidSchema.safeParse(eventId).success) {
     throw new TenantIsolationError();
   }
 
-  if (!managedClubIds(actor).includes(clubId)) {
+  if (
+    actor.role !== "CLUB_ADMIN" &&
+    actor.role !== "COLLEGE_ADMIN" &&
+    actor.role !== "SUPER_ADMIN"
+  ) {
+    throw new ActorNotAuthorizedError();
+  }
+
+  const isClubMgr =
+    actor.role === "CLUB_ADMIN" &&
+    actor.clubMemberships.some(
+      (m) =>
+        m.clubId === clubId &&
+        m.status === "ACTIVE" &&
+        (m.role === "PRESIDENT" || m.role === "OFFICER"),
+    );
+  const isCollegeMgr = actor.role === "COLLEGE_ADMIN";
+  const isSuper = isSuperAdmin(actor);
+
+  if (!isClubMgr && !isCollegeMgr && !isSuper) {
     throw new TenantIsolationError();
   }
 
@@ -842,11 +861,11 @@ export async function getClubAttendanceExport(
     where: {
       id: eventId,
       clubId,
-      collegeId,
+      ...(isSuper ? {} : { collegeId: actor.collegeId! }),
       deletedAt: null,
       status: { in: ["PUBLISHED", "COMPLETED"] },
     },
-    select: { id: true, title: true, startsAt: true, endsAt: true },
+    select: { id: true, title: true, startsAt: true, endsAt: true, collegeId: true },
   });
 
   if (!event) {
@@ -854,7 +873,7 @@ export async function getClubAttendanceExport(
   }
 
   const registrations = await prisma.eventRegistration.findMany({
-    where: { eventId, collegeId },
+    where: { eventId, collegeId: event.collegeId },
     select: {
       status: true,
       checkedInAt: true,

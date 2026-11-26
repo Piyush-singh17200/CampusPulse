@@ -15,6 +15,8 @@ export function createDatabaseClient(config: DatabaseConfig) {
     connectionTimeoutMillis: config.connectionTimeoutMs,
     idleTimeoutMillis: config.idleTimeoutMs,
     application_name: config.applicationName,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
     ...(config.ssl ? { ssl: { rejectUnauthorized: true } } : {}),
   });
 

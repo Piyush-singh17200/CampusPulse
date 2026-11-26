@@ -8,8 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { siteConfig } from "@/config/site";
+import type { UserRole } from "@/generated/prisma/enums";
+import { ROLE_LABELS, dashboardPathForRole } from "@/lib/roles";
 
-export function SiteHeader() {
+export type SiteHeaderProps = {
+  user?: {
+    name: string;
+    role: UserRole;
+  } | null;
+};
+
+export function SiteHeader({ user }: SiteHeaderProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -75,19 +84,35 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
-          <Badge variant="outline" className="hidden xl:inline-flex">
-            <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-            Four role workspaces
-          </Badge>
-          <ButtonLink href="/login" variant="ghost" size="sm">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href="/register" size="sm">
-            Create account
-            <ArrowUpRight aria-hidden="true" className="size-3.5" />
-          </ButtonLink>
-        </div>
+        {user ? (
+          <div className="hidden items-center gap-2 lg:flex">
+            <Badge variant="outline" className="hidden xl:inline-flex">
+              <span className="size-1.5 rounded-full bg-forest" aria-hidden="true" />
+              {ROLE_LABELS[user.role]}
+            </Badge>
+            <ButtonLink href="/account" variant="ghost" size="sm">
+              My account
+            </ButtonLink>
+            <ButtonLink href={dashboardPathForRole(user.role)} size="sm">
+              Open workspace
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
+            </ButtonLink>
+          </div>
+        ) : (
+          <div className="hidden items-center gap-2 lg:flex">
+            <Badge variant="outline" className="hidden xl:inline-flex">
+              <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
+              Four role workspaces
+            </Badge>
+            <ButtonLink href="/login" variant="ghost" size="sm">
+              Sign in
+            </ButtonLink>
+            <ButtonLink href="/register" size="sm">
+              Create account
+              <ArrowUpRight aria-hidden="true" className="size-3.5" />
+            </ButtonLink>
+          </div>
+        )}
 
         <button
           ref={triggerRef}
@@ -125,20 +150,41 @@ export function SiteHeader() {
               </a>
             ))}
           </nav>
-          <div className="mt-4 grid gap-2">
-            <ButtonLink href="/register" className="w-full" onClick={() => setIsOpen(false)}>
-              Create a student account
-              <ArrowUpRight aria-hidden="true" className="size-4" />
-            </ButtonLink>
-            <ButtonLink
-              href="/login"
-              variant="outline"
-              className="w-full"
-              onClick={() => setIsOpen(false)}
-            >
-              Sign in
-            </ButtonLink>
-          </div>
+          {user ? (
+            <div className="mt-4 grid gap-2">
+              <ButtonLink
+                href={dashboardPathForRole(user.role)}
+                className="w-full"
+                onClick={() => setIsOpen(false)}
+              >
+                Open workspace ({ROLE_LABELS[user.role]})
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </ButtonLink>
+              <ButtonLink
+                href="/account"
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsOpen(false)}
+              >
+                My account
+              </ButtonLink>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-2">
+              <ButtonLink href="/register" className="w-full" onClick={() => setIsOpen(false)}>
+                Create a student account
+                <ArrowUpRight aria-hidden="true" className="size-4" />
+              </ButtonLink>
+              <ButtonLink
+                href="/login"
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsOpen(false)}
+              >
+                Sign in
+              </ButtonLink>
+            </div>
+          )}
         </div>
       ) : null}
     </header>

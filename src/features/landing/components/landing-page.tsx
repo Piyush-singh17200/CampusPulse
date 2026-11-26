@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import type { UserRole } from "@/generated/prisma/enums";
 import { ClubSection } from "@/features/landing/components/club-section";
 import { CollegeSection } from "@/features/landing/components/college-section";
 import { CtaSection } from "@/features/landing/components/cta-section";
@@ -10,7 +11,14 @@ import { ProblemSection } from "@/features/landing/components/problem-section";
 import { StudentSection } from "@/features/landing/components/student-section";
 import { WorkflowSection } from "@/features/landing/components/workflow-section";
 
-export function LandingPage() {
+export type LandingPageProps = {
+  user?: {
+    name: string;
+    role: UserRole;
+  } | null;
+};
+
+export function LandingPage({ user }: LandingPageProps = {}) {
   return (
     <div className="min-h-screen overflow-x-clip bg-canvas">
       <a
@@ -20,10 +28,10 @@ export function LandingPage() {
         Skip to content
       </a>
 
-      <SiteHeader />
+      <SiteHeader user={user} />
 
       <main id="main-content" tabIndex={-1} className="focus:outline-none">
-        <HeroSection />
+        <HeroSection user={user} />
         <DiscoverySection />
         <ProblemSection />
         <PlatformSection />
@@ -31,7 +39,7 @@ export function LandingPage() {
         <StudentSection />
         <ClubSection />
         <CollegeSection />
-        <CtaSection />
+        <CtaSection user={user} />
       </main>
 
       <SiteFooter />

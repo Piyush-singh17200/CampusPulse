@@ -43,3 +43,33 @@ export async function requireDashboardRole(role: UserRole) {
 
   return user;
 }
+
+export async function requireAnyDashboardRole(roles: UserRole[]) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    let hasSession = false;
+
+    try {
+      const session = await auth.api.getSession({
+        headers: await headers(),
+        query: { disableCookieCache: true },
+      });
+      hasSession = Boolean(session?.user);
+    } catch {
+      hasSession = false;
+    }
+
+    redirect(hasSession ? "/account-disabled" : "/login");
+  }
+
+  if (!roles.includes(user.role)) {
+    redirect(dashboardPathForRole(user.role));
+  }
+
+  if (user.role !== "SUPER_ADMIN" && !user.collegeId) {
+    redirect("/unauthorized");
+  }
+
+  return user;
+}

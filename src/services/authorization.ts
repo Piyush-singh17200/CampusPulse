@@ -1,5 +1,6 @@
 import "server-only";
 
+import { env } from "@/config/env";
 import { ActorNotAuthorizedError } from "@/server/errors";
 
 import type { AuthenticatedActor } from "@/server/auth/types";
@@ -37,6 +38,12 @@ export function assertSuperAdmin(actor: AuthenticatedActor): void {
 
   if (!isSuperAdmin(actor)) {
     throw new ActorNotAuthorizedError("A platform administrator is required.");
+  }
+
+  if (env.EMAIL_ENABLED && !actor.emailVerified) {
+    throw new ActorNotAuthorizedError(
+      "A verified email address is required for platform administrative operations.",
+    );
   }
 }
 

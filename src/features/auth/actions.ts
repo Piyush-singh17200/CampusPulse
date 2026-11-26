@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -8,7 +9,7 @@ import { prisma } from "@/server/db/client";
 import { DomainError, InvalidResetTokenError } from "@/server/errors";
 import { assertSameOrigin } from "@/server/auth/csrf";
 import { auth } from "@/server/auth/auth";
-import { burnPasswordHash } from "@/server/auth/password";
+import { burnPasswordHash, hashPassword, verifyPassword } from "@/server/auth/password";
 import { requestPasswordReset, resetPasswordWithToken } from "@/server/auth/password-reset";
 import { registerStudent } from "@/server/auth/registration";
 import { getRequestIdentity, hashIp } from "@/server/auth/request-context";
@@ -16,6 +17,7 @@ import { RATE_LIMITS, consumeRateLimit } from "@/server/auth/rate-limit";
 import { recordAuthAuditEvent } from "@/server/auth/audit";
 import { getCurrentUser } from "@/server/auth/session";
 import {
+  changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   normalizeEmail,
@@ -137,9 +139,12 @@ export async function registerAction(
       headers: await headers(),
     });
   } catch {
+    revalidatePath("/", "layout");
     redirect("/login?registered=1");
   }
 
+  revalidatePath("/", "layout");
+  revalidatePath("/account", "page");
   redirect("/account");
 }
 
@@ -246,6 +251,8 @@ export async function loginAction(
     // or last-seen update failed.
   }
 
+  revalidatePath("/", "layout");
+  revalidatePath("/account", "page");
   redirect("/account");
 }
 
@@ -387,5 +394,131 @@ export async function logoutAction(): Promise<void> {
     // The redirect still sends the user to a safe signed-out screen.
   }
 
+  revalidatePath("/", "layout");
   redirect("/login?loggedOut=1");
+}
+
+export async function changePasswordAction(
+  _previousState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  try {
+    await assertSameOrigin();
+  } catch {
+    return errorState("We could not verify this request. Refresh the page and try again.");
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return errorState("You must be signed in to change your password.");
+  }
+
+  const currentPassword = stringValue(formData, "currentPassword");
+  const newPassword = stringValue(formData, "newPassword");
+  const confirmPassword = stringValue(formData, "confirmPassword");
+
+  const parsed = changePasswordSchema.safeParse({ currentPassword, newPassword });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: "Check the highlighted fields and try again.",
+      fieldErrors: toFieldErrors(parsed.error),
+    };
+  }
+
+  if (newPassword !== confirmPassword) {
+    return {
+      status: "error",
+      message: "The new passwords do not match.",
+      fieldErrors: { confirmPassword: ["The new passwords do not match."] },
+    };
+  }
+
+  const account = await prisma.account.findFirst({
+    where: { userId: user.id, providerId: "credential" },
+    select: { id: true, password: true },
+  });
+
+  if (!account || !account.password) {
+    return errorState("No password account was found for this user.");
+  }
+
+  const matches = await verifyPassword(account.password, currentPassword);
+  if (!matches) {
+    return {
+      status: "error",
+      message: "Your current password is incorrect.",
+      fieldErrors: { currentPassword: ["Your current password is incorrect."] },
+    };
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: { password: newHash },
+  });
+
+  const identity = await getRequestIdentity();
+  await recordAuthAuditEvent({
+    userId: user.id,
+    collegeId: user.collegeId,
+    event: "PASSWORD_RESET_COMPLETED",
+    email: user.email,
+    ipHash: hashIp(identity.ip),
+    userAgent: identity.userAgent,
+    metadata: { source: "account_settings" },
+  });
+
+  return {
+    status: "success",
+    message: "Your password has been changed successfully.",
+  };
+}
+
+export async function revokeSessionAction(
+  _previousState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  try {
+    await assertSameOrigin();
+  } catch {
+    return errorState("We could not verify this request. Refresh the page and try again.");
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return errorState("You must be signed in.");
+  }
+
+  const sessionId = stringValue(formData, "sessionId");
+  if (!sessionId) {
+    return errorState("A valid session ID is required.");
+  }
+
+  if (sessionId === user.sessionId) {
+    return errorState("To sign out of your current session, use Sign out instead.");
+  }
+
+  await prisma.session.deleteMany({
+    where: { id: sessionId, userId: user.id },
+  });
+
+  const identity = await getRequestIdentity();
+  await recordAuthAuditEvent({
+    userId: user.id,
+    collegeId: user.collegeId,
+    event: "SESSION_REVOKED",
+    email: user.email,
+    ipHash: hashIp(identity.ip),
+    userAgent: identity.userAgent,
+    metadata: { revokedSessionId: sessionId },
+  });
+
+  revalidatePath("/account");
+
+  return {
+    status: "success",
+    message: "The session has been revoked.",
+  };
 }

@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CampusPulse — Software Requirements Specification (SRS) CA3</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 20mm 18mm 20mm 18mm;
+        @bottom-center {
+          content: counter(page);
+          font-size: 10pt;
+          font-family: "Times New Roman", Times, serif;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Times New Roman", Times, serif;
+        font-size: 10pt;
+        line-height: 1.45;
+        color: #111;
+        margin: 0;
+        padding: 0;
+      }
+      .page {
+        page-break-after: always;
+        break-after: page;
+        position: relative;
+        min-height: 96vh;
+        padding-bottom: 15px;
+      }
+      .page:last-child {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      .cover {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        text-align: center;
+        min-height: 94vh;
+        padding: 30px 10px;
+      }
+      .lpu-logo {
+        display: inline-block;
+        border: 2px solid #e65100;
+        color: #e65100;
+        padding: 6px 16px;
+        font-weight: bold;
+        font-family: sans-serif;
+        font-size: 14pt;
+        letter-spacing: 1px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+      }
+      .cover-title {
+        margin: 30px 0 20px 0;
+      }
+      .cover-title h1 {
+        font-size: 26pt;
+        font-weight: bold;
+        margin: 0 0 10px 0;
+      }
+      .cover-title h2 {
+        font-size: 14pt;
+        font-weight: normal;
+        color: #333;
+        margin: 0 0 10px 0;
+      }
+      .cover-title h3 {
+        font-size: 12pt;
+        font-weight: bold;
+        margin: 0 0 20px 0;
+      }
+      .cover-title p {
+        font-size: 10pt;
+        color: #444;
+        max-width: 580px;
+        margin: 0 auto;
+        line-height: 1.5;
+      }
+      .cover-table {
+        width: 85%;
+        margin: 25px auto;
+      }
+      .cover-footer {
+        margin-bottom: 20px;
+        font-size: 11pt;
+        font-weight: bold;
+        line-height: 1.5;
+      }
+      h1 {
+        font-size: 15pt;
+        font-weight: bold;
+        margin: 16px 0 10px 0;
+        border-bottom: 1.5px solid #222;
+        padding-bottom: 3px;
+      }
+      h2 {
+        font-size: 12.5pt;
+        font-weight: bold;
+        margin: 14px 0 8px 0;
+        border-bottom: 1px solid #444;
+        padding-bottom: 2px;
+      }
+      h3 {
+        font-size: 11pt;
+        font-weight: bold;
+        margin: 10px 0 6px 0;
+      }
+      h4 {
+        font-size: 10pt;
+        font-weight: bold;
+        margin: 8px 0 4px 0;
+      }
+      p {
+        margin: 6px 0;
+        text-align: justify;
+      }
+      ul,
+      ol {
+        margin: 6px 0 10px 22px;
+        padding: 0;
+      }
+      li {
+        margin-bottom: 4px;
+        text-align: justify;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+        font-size: 9pt;
+      }
+      th,
+      td {
+        border: 1px solid #444;
+        padding: 5px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }
+      .table-title {
+        font-size: 9pt;
+        font-style: italic;
+        text-align: center;
+        margin: 8px 0 4px 0;
+      }
+      .figure-title {
+        font-size: 8.5pt;
+        font-style: italic;
+        text-align: center;
+        margin: 4px 0 10px 0;
+      }
+      .diagram-box {
+        border: 1px solid #777;
+        background: #fafafa;
+        padding: 8px;
+        margin: 8px 0 4px 0;
+        text-align: center;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 8pt;
+        line-height: 1.25;
+        white-space: pre;
+        border-radius: 4px;
+      }
+      .code-box {
+        background: #18181b;
+        color: #e4e4e7;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 8pt;
+        line-height: 1.35;
+        margin: 8px 0 4px 0;
+        white-space: pre;
+        overflow-x: hidden;
+      }
+      .footer-num {
+        text-align: center;
+        font-size: 9pt;
+        margin-top: 15px;
+      }
+      .bold {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- PAGE 1: COVER PAGE -->
+    <div class="page cover">
+      <div class="cover-header">
+        <div class="lpu-logo">LOVELY PROFESSIONAL UNIVERSITY</div>
+        <div style="font-size: 9pt; font-style: italic; color: #555; margin-bottom: 25px">
+          Transforming Education Transforming India
+        </div>
+        <div style="font-size: 13pt; font-weight: bold; letter-spacing: 0.5px">
+          CONTINUOUS ASSESSMENT 3 (CA3)
+        </div>
+        <div style="font-size: 11pt; margin-top: 4px">Course Code: INT257 (paired with INT252)</div>
+        <div style="font-size: 10.5pt; color: #333">
+          Course Name: Advanced Backend Programming (Next.js)
+        </div>
+        <div style="font-size: 10pt; color: #555">Academic Term: Autumn 2026</div>
+      </div>
+
+      <div class="cover-title">
+        <h1>CampusPulse</h1>
+        <h2>Software Requirements Specification (SRS)</h2>
+        <h3>IEEE Std 830-1998 Compliant Specification</h3>
+        <p>
+          A Multi-Tenant Campus Event Discovery and Governance Platform featuring App Router Server
+          Actions, Better Auth session authentication, Argon2id credential hashing, PostgreSQL
+          schema, row-level tenant isolation, cryptographic QR check-in passes, and S3 object
+          storage.
+        </p>
+      </div>
+
+      <div style="width: 100%">
+        <div style="font-weight: bold; margin-bottom: 6px; font-size: 11pt">
+          Prepared by (Group Project — 4 Members)
+        </div>
+        <table class="cover-table">
+          <thead>
+            <tr>
+              <th>Student Name</th>
+              <th style="width: 32%">Registration No.</th>
+              <th>Project Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Piyush Singh</strong></td>
+              <td>12420010</td>
+              <td>Lead Architecture, Security & Governance</td>
+            </tr>
+            <tr>
+              <td><strong>Team Member 2</strong></td>
+              <td>(Registration No.)</td>
+              <td>Club Operations & Media Intelligence</td>
+            </tr>
+            <tr>
+              <td><strong>Team Member 3</strong></td>
+              <td>(Registration No.)</td>
+              <td>Student Experience & Algorithms</td>
+            </tr>
+            <tr>
+              <td><strong>Team Member 4</strong></td>
+              <td>(Registration No.)</td>
+              <td>College Administration & Quality Assurance</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cover-footer">
+        School of Computer Science and Engineering<br />
+        Lovely Professional University, Phagwara, Punjab
+      </div>
+    </div>
+
+    <!-- PAGE 2: REVISION HISTORY & TOC -->
+    <div class="page">
+      <h2>Revision History</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 15%">Version</th>
+            <th style="width: 20%">Date</th>
+            <th>Description of Changes</th>
+            <th style="width: 22%">Author(s)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="bold">0.1</td>
+            <td>24 Oct 2026</td>
+            <td>
+              Initial draft of core functional requirements, user actors, and database entities.
+            </td>
+            <td>Piyush Singh</td>
+          </tr>
+          <tr>
+            <td class="bold">0.2</td>
+            <td>08 Nov 2026</td>
+            <td>
+              Added cryptographic QR ticket specification, S3 poster storage pipeline, and OCR
+              specs.
+            </td>
+            <td>Team Member 2</td>
+          </tr>
+          <tr>
+            <td class="bold">0.3</td>
+            <td>18 Nov 2026</td>
+            <td>
+              Specified schedule conflict algorithm, recommendation scoring, and DFD analysis
+              models.
+            </td>
+            <td>Team Member 3</td>
+          </tr>
+          <tr>
+            <td class="bold">1.0</td>
+            <td>24 Nov 2026</td>
+            <td>
+              Complete formal SRS baseline for CA3: verified non-functional metrics, Next.js 16
+              APIs, and multi-tenant security constraints.
+            </td>
+            <td>All Members</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Table of Contents</h2>
+      <table>
+        <tr>
+          <td>1. Introduction (Purpose, Scope, Definitions, References, Overview)</td>
+          <td style="text-align: right; width: 10%">1</td>
+        </tr>
+        <tr>
+          <td>
+            2. General Description (Perspective, Functions, Characteristics, Constraints,
+            Assumptions)
+          </td>
+          <td style="text-align: right">2</td>
+        </tr>
+        <tr>
+          <td>3. Specific Requirements</td>
+          <td style="text-align: right">3</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 20px">
+            3.1 External Interface Requirements (User, Hardware, Software, Communications)
+          </td>
+          <td style="text-align: right">3</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 20px">3.2 Functional Requirements (3.2.1 through 3.2.9)</td>
+          <td style="text-align: right">4</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 20px">
+            3.5 Non-Functional Requirements (Performance, Reliability, Availability, Security)
+          </td>
+          <td style="text-align: right">7</td>
+        </tr>
+        <tr>
+          <td style="padding-left: 20px">3.7 Design Constraints & 3.9 Other Requirements</td>
+          <td style="text-align: right">8</td>
+        </tr>
+        <tr>
+          <td>4. Analysis Models (DFD Level 0, DFD Level 1, DFD Level 2)</td>
+          <td style="text-align: right">8</td>
+        </tr>
+        <tr>
+          <td>5. GitHub Link</td>
+          <td style="text-align: right">9</td>
+        </tr>
+        <tr>
+          <td>6. Deployed Link</td>
+          <td style="text-align: right">9</td>
+        </tr>
+      </table>
+      <div class="footer-num">ii</div>
+    </div>
+
+    <!-- PAGE 3: 1. INTRODUCTION -->
+    <div class="page">
+      <h1>1. Introduction</h1>
+      <p>
+        The introduction to this Software Requirements Specification (SRS) provides an authoritative
+        technical overview of CampusPulse, adhering to IEEE Std 830-1998 guidelines.
+      </p>
+
+      <h3>1.1 Purpose</h3>
+      <p>
+        The purpose of this document is to define the functional, operational, performance,
+        security, and interface specifications for <strong>CampusPulse</strong>. It describes all
+        system behaviors and architectural boundaries required by software engineers to implement,
+        test, deploy, and maintain the system. The intended audience includes the course instructors
+        for INT257/INT252, student developers, QA automation testers, and university IT
+        administrators.
+      </p>
+
+      <h3>1.2 Scope</h3>
+      <p>
+        <strong>CampusPulse</strong> is a cloud-native, multi-tenant campus event discovery and
+        governance platform designed for universities. The platform will:
+      </p>
+      <ul>
+        <li>
+          Provide role-isolated dashboard workspaces for <strong>Students</strong>,
+          <strong>Club Administrators</strong>, <strong>College Administrators</strong>, and
+          <strong>Platform Super Admins</strong>.
+        </li>
+        <li>
+          Enforce logical multi-tenant database isolation, enabling multiple colleges to operate on
+          a shared PostgreSQL instance without cross-tenant data leaks.
+        </li>
+        <li>
+          Allow student clubs to draft event proposals, upload promotional artwork, and
+          automatically extract dates and venues via server-side OCR.
+        </li>
+        <li>
+          Programmatically detect schedule collisions and duplicate proposals across campus venues
+          before college approval.
+        </li>
+        <li>
+          Issue tamper-evident, dynamic HMAC-SHA256 QR attendance passes to registered students and
+          verify tickets via browser-based camera scanning.
+        </li>
+        <li>
+          Provide a unified settings center with Argon2id password rotation, active session
+          revocation, and dark mode theming.
+        </li>
+      </ul>
+      <p>
+        The software will <em>not</em> process monetary ticket payments or store personal biometric
+        information.
+      </p>
+
+      <h3>1.3 Definitions, Acronyms, and Abbreviations</h3>
+      <ul>
+        <li>
+          <strong>Argon2id:</strong> A memory-hard key derivation function for secure password
+          hashing (RFC 9106).
+        </li>
+        <li>
+          <strong>Better Auth:</strong> Modern TypeScript authentication framework providing
+          cookie-based session management.
+        </li>
+        <li>
+          <strong>DFD:</strong> Data Flow Diagram representing processes, data stores, and external
+          entities.
+        </li>
+        <li>
+          <strong>FSM:</strong> Finite State Machine governing lifecycle transitions for events and
+          registrations.
+        </li>
+        <li>
+          <strong>HMAC:</strong> Hash-Based Message Authentication Code used to sign dynamic QR
+          check-in tokens.
+        </li>
+        <li>
+          <strong>OCR:</strong> Optical Character Recognition for extracting text from promotional
+          posters via Tesseract.js.
+        </li>
+        <li>
+          <strong>RBAC:</strong> Role-Based Access Control enforcing permissions based on user
+          roles.
+        </li>
+      </ul>
+
+      <h3>1.4 References</h3>
+      <ol>
+        <li>
+          IEEE Std 830-1998:
+          <em>IEEE Recommended Practice for Software Requirements Specifications.</em>
+        </li>
+        <li>
+          Vercel Next.js 16 Documentation:
+          <em>App Router, Server Actions, Route Handlers.</em> https://nextjs.org/docs
+        </li>
+        <li>
+          Prisma ORM 7 Documentation:
+          <em>Driver Adapters, Transactions, Connection Pooling.</em> https://www.prisma.io/docs
+        </li>
+        <li>Neon Serverless Postgres 17 Architecture: https://neon.tech/docs</li>
+        <li>
+          Lovely Professional University:
+          <em>INT252/INT257 Continuous Assessment Guidelines (2026).</em>
+        </li>
+      </ol>
+
+      <h3>1.5 Overview</h3>
+      <p>
+        Section 2 provides general product perspectives, user characteristics, and system
+        constraints. Section 3 defines specific interface, functional, and non-functional
+        requirements. Section 4 models data flows with formal DFD diagrams. Sections 5 and 6 provide
+        source code repository and live deployment links.
+      </p>
+      <div class="footer-num">1</div>
+    </div>
+
+    <!-- PAGE 4: 2. GENERAL DESCRIPTION -->
+    <div class="page">
+      <h1>2. General Description</h1>
+      <h3>2.1 Product Perspective</h3>
+      <p>
+        CampusPulse operates as a modern cloud-native system replacing informal WhatsApp groups,
+        physical sign-up desks, and unverified Google Forms. It runs as a self-contained Next.js
+        application interfacing with Neon PostgreSQL 17 and Supabase S3 storage.
+      </p>
+
+      <div class="diagram-box">
+        +---------------------------------------------------------------------------------------+ |
+        CAMPUSPULSE SYSTEM | | | | [ User Workspaces ] | | - Student Portal (/student) - Club
+        Organizer Console (/club) | | - College Administration (/college) - Platform Governance
+        (/platform) | | - Unified Settings Center (/account) - Public Discovery Portal (/) |
+        +-------------------------------------------+-------------------------------------------+ |
+        +------------------+------------------+ | | v v
+        +-----------------------------------------------+ +------------------------------------+ |
+        NEON POSTGRESQL 17 | | SUPABASE S3 STORAGE | | - 19 Relational Database Models | | - Private
+        event poster buckets | | - Atomic Token-Bucket Rate Limiter | | - Presigned upload/read URLs
+        | | - Immutable Audit Logging Engine | | - Magic-byte validated media |
+        +-----------------------------------------------+ +------------------------------------+
+      </div>
+      <div class="figure-title">Figure 1: Product Perspective & System Context</div>
+
+      <h3>2.2 Product Functions</h3>
+      <ul>
+        <li>
+          <strong>Multi-Tenant Management:</strong> Provisioning university organizations with
+          unique slugs, domains, and timezones.
+        </li>
+        <li>
+          <strong>Identity & Sessions:</strong> Email-domain matching registration, Argon2id
+          passwords, and remote session revocation.
+        </li>
+        <li>
+          <strong>Event Operations:</strong> Multi-step drafting, S3 poster storage, Tesseract OCR
+          analysis, and clash detection.
+        </li>
+        <li>
+          <strong>Discovery & Recommendation:</strong> Deterministic ranking using student academic
+          interests and recency decay.
+        </li>
+        <li>
+          <strong>Cryptographic Attendance:</strong> HMAC-signed QR check-in passes verified via
+          live camera scanning with atomic single check-in commits.
+        </li>
+      </ul>
+
+      <h3>2.3 User Characteristics</h3>
+      <ul>
+        <li>
+          <strong>Student:</strong> Accesses campus events on mobile/desktop; registers for events,
+          views personalized schedules, generates QR check-in passes, and submits verified feedback.
+        </li>
+        <li>
+          <strong>Club Admin:</strong> Organizes student clubs; creates event proposals, uploads
+          posters, monitors ticket capacity, and operates the live camera scanner at venue
+          entrances.
+        </li>
+        <li>
+          <strong>College Admin:</strong> University faculty/deans; moderates proposals, reviews
+          room clash warnings, manages club statuses, and oversees college audit logs.
+        </li>
+        <li>
+          <strong>Super Admin:</strong> Platform operator; provisions college tenants, manages
+          global user permissions, and monitors system audit history.
+        </li>
+      </ul>
+
+      <h3>2.4 General Constraints</h3>
+      <p>
+        The system is designed under a zero-cost free-tier deployment constraint: Vercel Hobby +
+        Neon PostgreSQL Free Tier (0.5 GB) + Supabase Storage Free Tier (1 GB). All operations must
+        preserve tenant isolation; cross-tenant queries must return HTTP 404.
+      </p>
+
+      <h3>2.5 Assumptions and Dependencies</h3>
+      <p>
+        Users require modern web browsers supporting HTML5 getUserMedia for live camera scanning.
+        Relational database connectivity depends on Neon PostgreSQL 17 serverless availability with
+        SSL enabled.
+      </p>
+      <div class="footer-num">2</div>
+    </div>
+
+    <!-- PAGE 5: 3. SPECIFIC REQUIREMENTS -->
+    <div class="page">
+      <h1>3. Specific Requirements</h1>
+      <h2>3.1 External Interface Requirements</h2>
+      <h3>3.1.1 User Interfaces</h3>
+      <p>
+        The UI is fully responsive across mobile (360px), tablet (768px), and desktop (1440px)
+        breakpoints. It features semantic light and dark themes toggled via /account, with
+        pre-hydration scripts eliminating visual flash.
+      </p>
+
+      <h3>3.1.2 Hardware Interfaces</h3>
+      <p>
+        Interfaces with client device cameras via HTML5 MediaDevices.getUserMedia for real-time QR
+        code decoding via jsQR.
+      </p>
+
+      <h3>3.1.3 Software Interfaces</h3>
+      <ul>
+        <li>
+          <strong>Neon PostgreSQL 17:</strong> Connected via Prisma PgAdapter using pooled
+          connections with mandatory SSL encryption (sslmode=require).
+        </li>
+        <li>
+          <strong>Supabase S3 Storage:</strong> Interfaced via AWS S3 SDK for presigned upload URLs
+          and secure object streaming.
+        </li>
+        <li>
+          <strong>Tesseract.js Engine:</strong> In-process WebAssembly/Node workers for optical
+          character recognition on event poster images.
+        </li>
+      </ul>
+
+      <h3>3.1.4 Communications Interfaces</h3>
+      <p>
+        All traffic is strictly HTTPS (TLS 1.3). Mutations utilize Next.js Server Actions with
+        strict Origin and Host verification to eliminate CSRF risks. Exports deliver RFC 5545
+        iCalendar (.ics) and RFC 4180 CSV files.
+      </p>
+
+      <h2>3.2 Functional Requirements</h2>
+      <h3>3.2.1 Multi-Tenant Organization & Tenant Provisioning</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Enables Super Admins to provision and govern university
+          tenants.
+        </li>
+        <li>
+          <strong>Inputs:</strong> name (2-160 chars), slug (2-80 chars, lowercase alphanumeric with
+          hyphens), shortName, primaryDomain, timezone (valid IANA string).
+        </li>
+        <li>
+          <strong>Processing:</strong> Verify caller is SUPER_ADMIN. Validate timezone. Check slug
+          and domain uniqueness. Insert College record in ACTIVE status. Write COLLEGE_CREATED audit
+          log.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Provisioned College record; immediate availability for student
+          registration.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> If caller unauthorized: throw ActorNotAuthorizedError
+          (403). If slug/domain exists: throw DomainError("CONFLICT", 409).
+        </li>
+      </ul>
+
+      <h3>3.2.2 User Authentication, Argon2id Passwords & Session Governance</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Manages user registration, credential hashing, login,
+          password rotation, and active session termination.
+        </li>
+        <li>
+          <strong>Inputs:</strong> Registration credentials, login credentials, currentPassword,
+          newPassword (min 8 chars, 1 uppercase, 1 lowercase, 1 number), sessionId.
+        </li>
+        <li>
+          <strong>Processing:</strong> Hash passwords with memory-hard Argon2id. Issue secure
+          HTTP-only cookies. On password change: verify existing hash, update credential, purge
+          remote sessions, record PASSWORD_CHANGED audit log.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Authenticated session cookie; active sessions list in /account.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> Return unified "Invalid email or password" error to
+          prevent enumeration.
+        </li>
+      </ul>
+      <div class="footer-num">3</div>
+    </div>
+
+    <!-- PAGE 6: FUNCTIONAL REQUIREMENTS CONTINUED -->
+    <div class="page">
+      <h3>3.2.3 Student Event Discovery, Search & Recommendations</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Provides categorized event search with deterministic
+          recommendation scoring.
+        </li>
+        <li><strong>Inputs:</strong> Search string q, category slug, date filter, page number.</li>
+        <li>
+          <strong>Processing:</strong> Query Event table scoped to student's verified collegeId.
+          Compute recommendation score based on interest overlap (+30 pts), department match (+20
+          pts), and recency decay. Exclude full, cancelled, or registered events.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Paginated event catalog with live capacity and registration
+          status indicators.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> Graceful fallback to default upcoming events on empty
+          query results.
+        </li>
+      </ul>
+
+      <h3>3.2.4 Event Capacity, Registration & Cancellation FSM</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Governs event ticket registrations with atomic concurrency
+          locks.
+        </li>
+        <li><strong>Inputs:</strong> eventId (UUID).</li>
+        <li>
+          <strong>Processing:</strong> Within an atomic PostgreSQL transaction: lock event row,
+          verify status is PUBLISHED, check student not already registered, verify confirmed count
+          is less than capacity, insert EventRegistration record in CONFIRMED status, write
+          REGISTRATION_STATUS_CHANGED audit log.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Confirmed EventRegistration record; updated capacity counter.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> If at capacity: throw DomainError("EVENT_FULL", 409). If
+          duplicate: throw DomainError("DUPLICATE_REGISTRATION", 409).
+        </li>
+      </ul>
+
+      <h3>3.2.5 Event Proposal Drafting, Conflict Detection & Moderation Queue</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Enables clubs to propose events, detects venue/schedule
+          collisions, and routes to college administrators.
+        </li>
+        <li>
+          <strong>Inputs:</strong> Event details: title, startsAt, endsAt, venueName, capacity,
+          categoryIds.
+        </li>
+        <li>
+          <strong>Processing:</strong> Verify caller is club manager. Compare [startsAt, endsAt]
+          interval against all other events at the same venue. Flag overlaps in DuplicateReview.
+          Transition status from DRAFT to PENDING_APPROVAL.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Event draft; duplicate review notices in /college/approvals.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> If endsAt &lt;= startsAt: throw InvalidInputError("End
+          date must be after start date.").
+        </li>
+      </ul>
+
+      <h3>3.2.6 Poster Artwork Upload, S3 Storage & Tesseract OCR Pipeline</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Validates promotional artwork, uploads to private S3
+          buckets, and extracts text via OCR.
+        </li>
+        <li><strong>Inputs:</strong> Image file buffer, eventId.</li>
+        <li>
+          <strong>Processing:</strong> Verify file size &le; 4 MB. Verify binary magic bytes
+          (JPEG/PNG/WebP). Prohibit SVG. Upload to private S3 bucket. Spawn Tesseract OCR worker to
+          extract text and record suggestions.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Stored EventPoster entity; extracted title, date, and venue
+          suggestions.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> Corrupt/disguised files throw InvalidInputError. OCR
+          failure sets ocrStatus = 'FAILED' without aborting upload.
+        </li>
+      </ul>
+      <div class="footer-num">4</div>
+    </div>
+
+    <!-- PAGE 7: FUNCTIONAL REQUIREMENTS CONTINUED -->
+    <div class="page">
+      <h3>3.2.7 Cryptographic Attendance QR Issuance & Live Camera Scanning</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Issues dynamic HMAC-signed check-in passes and enables
+          organizers to scan and mark attendance in real time.
+        </li>
+        <li>
+          <strong>Inputs:</strong> Registration ID for issuance; scanned QR token for check-in;
+          status and reason for manual correction.
+        </li>
+        <li>
+          <strong>Processing:</strong> 1. Issuance: Sign token containing registrationId using
+          HMAC-SHA256. Store token hash in AttendanceCredential.<br />
+          2. Scan: Verify signature. Verify check-in window: [startsAt - 2h, endsAt + 2h].<br />
+          3. Commit: Atomically update EventRegistration from CONFIRMED to ATTENDED and set
+          checkedInAt = NOW(). Log ATTENDANCE_RECORDED audit entry.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Success verification banner with student name and roll number;
+          updated attendance metrics.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> Expired tokens return 400. Duplicate check-in scans
+          return 409 (ALREADY_CHECKED_IN).
+        </li>
+      </ul>
+
+      <h3>3.2.8 Verified Attendee Feedback & Comment Moderation</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Collects star ratings and qualitative reviews exclusively
+          from verified attendees.
+        </li>
+        <li><strong>Inputs:</strong> eventId, rating (1–5), comment (optional), isPublic.</li>
+        <li>
+          <strong>Processing:</strong> Verify caller has EventRegistration with status ===
+          'ATTENDED'. Verify event ended and within 30-day window. Insert Feedback in PENDING
+          status.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Recorded Feedback entity; aggregated rating analytics for clubs.
+        </li>
+        <li>
+          <strong>Error Handling:</strong> Unattended students attempting feedback receive
+          ActorNotAuthorizedError (403).
+        </li>
+      </ul>
+
+      <h3>3.2.9 In-Database Token-Bucket Rate Limiting & Sensitive Data Exports</h3>
+      <ul>
+        <li>
+          <strong>Introduction:</strong> Protects endpoints against automated attacks and exports
+          formula-injection-safe CSVs.
+        </li>
+        <li><strong>Inputs:</strong> Action key, user identifier, export query parameters.</li>
+        <li>
+          <strong>Processing:</strong> Atomically consume tokens from RateLimit table; fail closed
+          on error. For CSV exports: prepend tab to cells starting with =, +, -, or @. Log
+          EXPORT_DOWNLOADED audit entry.
+        </li>
+        <li>
+          <strong>Outputs:</strong> Rate limit approval or 429 Retry After; streaming CSV download.
+        </li>
+        <li><strong>Error Handling:</strong> Unauthorized export attempts return HTTP 403.</li>
+      </ul>
+      <div class="footer-num">5</div>
+    </div>
+
+    <!-- PAGE 8: 3.5 NON-FUNCTIONAL REQUIREMENTS -->
+    <div class="page">
+      <h2>3.5 Non-Functional Requirements</h2>
+      <h3>3.5.1 Performance</h3>
+      <ul>
+        <li>
+          <strong>Server Response Latency:</strong> 95% of Server Component page renders shall
+          deliver the first contentful paint in under <strong>800 ms</strong>.
+        </li>
+        <li>
+          <strong>Database Queries:</strong> 95% of indexed queries shall execute in under
+          <strong>50 ms</strong> via Prisma connection pooling.
+        </li>
+        <li>
+          <strong>Live Camera Scanning:</strong> The camera QR scanner shall decode, verify, and
+          commit attendance check-ins in under <strong>250 ms</strong> per attendee.
+        </li>
+        <li>
+          <strong>Build Optimization:</strong> Next.js Turbopack production compilation shall
+          complete within <strong>40 seconds</strong>.
+        </li>
+      </ul>
+
+      <h3>3.5.2 Reliability</h3>
+      <ul>
+        <li>
+          <strong>Atomic Transactions:</strong> Multi-table state mutations shall execute inside
+          PostgreSQL transactions (runInTransaction), guaranteeing zero partial states on crash.
+        </li>
+        <li>
+          <strong>Fail-Closed Security:</strong> Rate limiters and authorization guards shall fail
+          closed upon database timeouts.
+        </li>
+        <li>
+          <strong>Idempotency:</strong> Repeated submission of identical mutations shall be handled
+          cleanly without unhandled server exceptions.
+        </li>
+      </ul>
+
+      <h3>3.5.3 Availability</h3>
+      <ul>
+        <li>
+          <strong>Target Uptime:</strong> Target <strong>99.9% availability</strong> backed by
+          Vercel serverless edge nodes and Neon multi-AZ failover.
+        </li>
+        <li>
+          <strong>Automated Health Monitoring:</strong> /api/health shall verify live database
+          connectivity (SELECT 1) within <strong>100 ms</strong>.
+        </li>
+      </ul>
+
+      <h3>3.5.4 Security</h3>
+      <ul>
+        <li>
+          <strong>Password Hashing:</strong> Strictly Argon2id with memory-hard cost parameters. No
+          plaintext passwords logged.
+        </li>
+        <li>
+          <strong>Tenant Isolation:</strong> Foreign-key scoping on all 19 tables; cross-tenant
+          requests return HTTP 404 (TenantIsolationError).
+        </li>
+        <li>
+          <strong>Dynamic QR Credentials:</strong> HMAC-SHA256 signed tokens bound to specific
+          registrations, valid only within a 4-hour window.
+        </li>
+        <li>
+          <strong>Instant Session Purging:</strong> Role modifications or tenant suspensions
+          immediately delete all corresponding database sessions.
+        </li>
+      </ul>
+
+      <h3>3.5.5 Maintainability</h3>
+      <ul>
+        <li>
+          <strong>Type Safety:</strong> 100% strict TypeScript typing (tsc --noEmit) with zero
+          compiler errors.
+        </li>
+        <li>
+          <strong>Automated Testing:</strong> Test suite maintaining 32 test files and 246 automated
+          tests passing with zero failures.
+        </li>
+      </ul>
+
+      <h3>3.5.6 Portability</h3>
+      <p>
+        The system shall execute without code changes in any Node.js &ge; 20.19.0 runtime, Docker
+        container, or Vercel serverless environment.
+      </p>
+
+      <h2>3.7 Design Constraints</h2>
+      <p>
+        Constrained strictly to free-tier cloud resources: Vercel Hobby + Neon PostgreSQL Free (0.5
+        GB) + Supabase Storage Free (1 GB). No paid external APIs are utilized.
+      </p>
+
+      <h2>3.9 Other Requirements</h2>
+      <p>
+        Maintains an immutable transactional audit trail (AuditLog) for every critical action with
+        sensitive fields redacted. Frontend complies with WCAG 2.1 AA accessibility standards.
+      </p>
+      <div class="footer-num">6</div>
+    </div>
+
+    <!-- PAGE 9: 4. ANALYSIS MODELS (DFD) -->
+    <div class="page">
+      <h1>4. Analysis Models</h1>
+      <h2>4.1 Data Flow Diagrams (DFD)</h2>
+      <h3>4.1.1 DFD Level 0 (Context Diagram)</h3>
+      <p>
+        The Level 0 Context Diagram models CampusPulse as a single central process interacting with
+        external user roles:
+      </p>
+
+      <div class="diagram-box">
+        +----------------------------------------------+ | STUDENT |
+        +----------------------------------------------+ | ^ Registration / | | Event Catalog /
+        Ticket Request | | QR Attendance Pass v |
+        +---------------------------------------------------------------------------------------+ |
+        | | 0. CAMPUSPULSE SYSTEM | | |
+        +---------------------------------------------------------------------------------------+ ^
+        | ^ ^ | Event Proposals / | Attendee Roster / | Event Approvals / | Tenant Provisioning / |
+        Poster Uploads | Scan Confirmations | Moderation Decisions| Lifecycle Policies | v | |
+        +------------------------------------+ +--------------------+ +--------------------+ | CLUB
+        ADMIN | | COLLEGE ADMIN | | SUPER ADMIN | +------------------------------------+
+        +--------------------+ +--------------------+
+      </div>
+      <div class="figure-title">Figure 2: DFD Level 0 — System Context Diagram</div>
+
+      <h3>4.1.2 DFD Level 1 (Core Functional Modules)</h3>
+      <div class="diagram-box">
+        +------------------------------------+ | 1.0 AUTHENTICATION | | Better Auth / Argon2id /
+        Cookie | +------------------------------------+ | +---------------+---------------+ |
+        (Authenticated Actor Context) | v v +------------------------------------+
+        +------------------------------------+ | 2.0 EVENT LIFECYCLE | | 3.0 DISCOVERY & BOOKING | |
+        Draft, Poster OCR, Clash Review, | | Recommendations, Schedule Sync, | | Approval FSM
+        Transitions | | Capacity Reservation | +------------------------------------+
+        +------------------------------------+ | | +-------------------+ +-------------------+ | | v
+        v +------------------------------------+ | 4.0 CRYPTOGRAPHIC ATTENDANCE | | Token Signing,
+        Live Camera Scan, | | Single-Use Check-in Commit | +------------------------------------+ |
+        v +------------------------------------+ | 5.0 GOVERNANCE & AUDITING | | PostgreSQL Rate
+        Limits, Tenant | | Isolation, Immutable Logs | +------------------------------------+
+      </div>
+      <div class="figure-title">Figure 3: DFD Level 1 — Core Functional Decompositions</div>
+      <div class="footer-num">7</div>
+    </div>
+
+    <!-- PAGE 10: DFD LEVEL 2 & LINKS -->
+    <div class="page">
+      <h3>4.1.3 DFD Level 2 (Attendance QR Verification & Ticket Check-In)</h3>
+      <p>
+        The Level 2 DFD decomposes the cryptographic attendance scanning sub-process (Process 4.0):
+      </p>
+
+      <div class="diagram-box">
+        [ Student ] ----> Request Pass ----> ( 4.1 Generate QR ) ----> Signs Token with HMAC-SHA256
+        | v [ Club Admin ] ---> Camera Scan ---> ( 4.2 Decode Frame) <--- Reads QR from Screen via
+        jsQR | v ( 4.3 Validate Window ) -> Check: startsAt - 2h <= NOW <= endsAt + 2h | v ( 4.4
+        Atomic Commit ) ---> UPDATE EventRegistration | SET status = 'ATTENDED', checkedInAt = NOW()
+        | WHERE status = 'CONFIRMED' v ( 4.5 Record Audit ) ----> INSERT INTO AuditLog
+        (ATTENDANCE_RECORDED) | v Displays Success Notification on Camera View
+      </div>
+      <div class="figure-title">
+        Figure 4: DFD Level 2 — Attendance QR Verification & Check-In Workflow
+      </div>
+
+      <h1>5. GitHub Link</h1>
+      <p>
+        The complete production source code, Prisma database migrations, automated Vitest test
+        suite, and architectural documentation are publicly maintained in the Git repository:
+      </p>
+      <p
+        style="
+          font-size: 11pt;
+          font-weight: bold;
+          padding: 10px;
+          background: #f4f4f5;
+          border: 1px solid #ddd;
+          text-align: center;
+        "
+      >
+        GitHub Repository: https://github.com/piyushsingh/campuspulse
+      </p>
+
+      <h1>6. Deployed Link</h1>
+      <p>
+        The live, production-compiled CampusPulse application with active PostgreSQL multi-tenant
+        database connection is deployed and accessible at:
+      </p>
+      <p
+        style="
+          font-size: 11pt;
+          font-weight: bold;
+          padding: 10px;
+          background: #f4f4f5;
+          border: 1px solid #ddd;
+          text-align: center;
+        "
+      >
+        Deployed Application: https://campuspulse.vercel.app<br />
+        <span style="font-size: 9.5pt; font-weight: normal; color: #555"
+          >Local Development Instance: http://localhost:3000</span
+        >
+      </p>
+
+      <div
+        style="
+          margin-top: 40px;
+          border-top: 1px solid #aaa;
+          padding-top: 15px;
+          font-size: 9.5pt;
+          text-align: center;
+          color: #666;
+        "
+      >
+        CampusPulse — Software Requirements Specification (SRS) · Continuous Assessment 3 (CA3) ·
+        Autumn 2026<br />
+        School of Computer Science and Engineering · Lovely Professional University, Phagwara,
+        Punjab
+      </div>
+      <div class="footer-num">8</div>
+    </div>
+  </body>
+</html>

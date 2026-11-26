@@ -19,6 +19,7 @@ const navItems: DashboardNavItem[] = [
   { href: "/student/feedback", label: "Feedback", icon: "feedback", group: "You" },
   { href: "/student/notifications", label: "Notifications", icon: "bell", group: "You" },
   { href: "/student/profile", label: "Profile", icon: "profile", group: "You" },
+  { href: "/account", label: "Settings", icon: "settings", group: "You" },
 ];
 
 export default async function StudentLayout({ children }: { children: ReactNode }) {

@@ -162,6 +162,13 @@ function objectUrl(
   };
 }
 
+function contentTypeForKey(key: string): string {
+  if (key.endsWith(".webp")) return "image/webp";
+  if (key.endsWith(".png")) return "image/png";
+  if (key.endsWith(".jpg") || key.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
+}
+
 /**
  * S3-compatible poster storage. It implements the existing `PosterStorage`
  * contract with the platform `fetch` API and a dependency-free SigV4 signer.
@@ -183,7 +190,12 @@ export function createS3PosterStorage(config: S3PosterStorageConfig): PosterStor
       url,
       headers: {
         host: url.host,
-        ...(method === "PUT" ? { "if-none-match": "*" } : {}),
+        ...(method === "PUT"
+          ? {
+              "content-type": contentTypeForKey(key),
+              "if-none-match": "*",
+            }
+          : {}),
       },
       payloadHash,
       region: config.region,
